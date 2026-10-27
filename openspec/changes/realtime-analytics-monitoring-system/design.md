@@ -368,12 +368,13 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 ### 12. Docker
 
-- **多階段 Dockerfile**（`backend/Dockerfile`、`frontend/Dockerfile`）：因為 `pixi.toml` 在根目錄，build context 是專案根目錄（compose 以 `context: .` 加 `dockerfile:` 指定），根目錄的 `.dockerignore` 排除 `.pixi/`、`.git/`、`.env`、`openspec/` 等。`build` 階段使用官方 pixi 映像（`ghcr.io/prefix-dev/pixi`，固定版本），先只複製 `pixi.toml`、`pixi.lock` 再執行 `pixi install --locked -e <環境>`（後端 `backend-prod`、前端 `frontend`），依賴沒變時可沿用快取層；`build` 階段另以 `pixi shell-hook -e <環境> -s bash` 產生環境啟用腳本。`runtime` 階段以 `debian:bookworm-slim` 為基底，只把 `.pixi/envs/<環境>` 與各自的程式碼資料夾複製到**相同路徑**（conda 環境內含絕對路徑前綴，換路徑會失效），連同啟用腳本與程式碼一起複製，以非 root 使用者執行。`entrypoint.sh` 先 `source` 啟用腳本再執行指令（pixi 官方 container 做法，讓 `PATH`、`CONDA_PREFIX` 與套件的 activation 設定都生效）；另外把環境的 `bin` 加進映像的 `PATH`，供 compose healthcheck 這類不經 entrypoint 的指令使用。Python 直譯器本身也來自該環境，映像不含 pixi 與編譯器。
+- **多階段 Dockerfile**（`backend/Dockerfile`、`frontend/Dockerfile`）：因為 `pixi.toml` 在根目錄，build context 是專案根目錄（compose 以 `context: .` 加 `dockerfile:` 指定），根目錄的 `.dockerignore` 排除 `.pixi/`、`.git/`、`.env`、`openspec/` 等。`build` 階段使用官方 pixi 映像（`ghcr.io/prefix-dev/pixi`，固定版本），先只複製 `pixi.toml`、`pixi.lock` 再執行 `pixi install --locked -e <環境>`（後端 `backend-prod`、前端 `frontend`），依賴沒變時可沿用快取層；`build` 階段另以 `pixi shell-hook -e <環境> -s bash` 產生環境啟用腳本。`runtime` 階段以 `debian:trixie-slim`（Debian 13）為基底，只把 `.pixi/envs/<環境>` 與各自的程式碼資料夾複製到**相同路徑**（conda 環境內含絕對路徑前綴，換路徑會失效），連同啟用腳本與程式碼一起複製，以非 root 使用者執行。`entrypoint.sh` 先 `source` 啟用腳本再執行指令（pixi 官方 container 做法，讓 `PATH`、`CONDA_PREFIX` 與套件的 activation 設定都生效）；另外把環境的 `bin` 加進映像的 `PATH`，供 compose healthcheck 這類不經 entrypoint 的指令使用。Python 直譯器本身也來自該環境，映像不含 pixi 與編譯器。
 - 後端 Dockerfile 另有 `test` 階段：以 `build` 階段為基礎執行 `pixi install --locked -e backend`（含測試套件），供 `backend-test` 服務使用。
 - **docker-compose.yml**：
   - `db`：`mariadb:11.7`，volume `db_data:/var/lib/mysql`，對主機開放 `3306` 供本地開發連線，healthcheck 用映像內建 `healthcheck.sh --connect --innodb_initialized`。
-  - `backend`：`depends_on: db (service_healthy)`，port 8000，healthcheck 以 `python -c` 呼叫 `/health`（slim 映像沒有 curl）。
-  - `frontend`：`depends_on: backend (service_healthy)`，port 8501。
+  - `backend`：`env_file: .env`，`depends_on: db (service_healthy)`，port 8000，healthcheck 以 `python -c` 呼叫 `/health`（slim 映像沒有 curl）。
+  - `frontend`：`env_file: .env`，`depends_on: backend (service_healthy)`，port 8501，healthcheck 以 `python -c` 呼叫 Streamlit 內建的 `/_stcore/health`。
+  - Compose 讀取根目錄 `.env` 只用於替換 compose 檔中的 `${...}`，不會自動傳進容器，所以 backend 與 frontend 要以 `env_file` 注入；`db` 以 `environment` 明確列出四個 `MARIADB_*` 變數。
   - `db-test` 與 `backend-test`：放在 `profiles: ["test"]`，平常不啟動；`backend-test` 以後端 Dockerfile 的 `test` target 建置，執行 `pixi run -e backend test`；`db-test` 是另一個 MariaDB 容器（無 volume），讓測試不碰正式資料，也不需要用 SQL 腳本建第二個資料庫。
   - 全部在 `app-net` 網路，服務間以服務名稱互連（`db:3306`、`backend:8000`）。
 - **測試指令**：`docker compose --profile test run --rm backend-test`，測試以 `Base.metadata.create_all/drop_all` 建立與清除資料表，並將模擬器設為停用。

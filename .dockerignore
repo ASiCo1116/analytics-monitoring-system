@@ -1,0 +1,11 @@
+# Build context is the repo root (pixi.toml lives there); keep it small and secret-free.
+.git/
+.pixi/
+.env
+**/.env
+**/__pycache__/
+**/.pytest_cache/
+openspec/
+.claude/
+.superpowers/
+spec.md

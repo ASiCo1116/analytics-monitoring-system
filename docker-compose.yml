@@ -1,0 +1,66 @@
+services:
+  db:
+    image: mariadb:11.7
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE}
+      MARIADB_USER: ${MARIADB_USER}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      # Exposed for local development with pixi (backend/.env points to localhost:3306)
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app-net
+
+  backend:
+    build:
+      # pixi.toml is at the repo root, so the build context is the root
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    # Compose only uses .env for ${...} substitution; env_file passes the variables into the container
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # The slim image has no curl
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    env_file: .env
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app-net
+
+volumes:
+  db_data:
+
+networks:
+  app-net:

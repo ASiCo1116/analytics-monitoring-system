@@ -1,0 +1,56 @@
+[workspace]
+name = "analytics-monitoring-system"
+channels = ["conda-forge"]
+# linux-* are needed so `pixi install --locked` works inside Docker
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[dependencies]
+python = "3.14.*"
+
+# ---------- backend ----------
+[feature.backend.dependencies]
+fastapi = ">=0.162.0,<0.163"
+uvicorn-standard = ">=0.54.0,<0.55"
+sqlalchemy = ">=2.1,<2.2"
+greenlet = ">=3.5.6,<4"
+alembic = ">=1.20.1,<2"
+pydantic-settings = ">=2.16.1,<3"
+pyjwt = ">=2.15.1,<3"
+bcrypt = ">=5.0.0,<6"
+openpyxl = ">=3.1.5,<4"
+python-multipart = ">=0.0.32,<0.0.33"
+email-validator = ">=2.3.0,<3"
+
+[feature.backend.pypi-dependencies]
+asyncmy = ">=0.2.17, <0.3"
+
+[feature.backend.tasks]
+dev = { cmd = "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log", cwd = "backend" }
+migrate = { cmd = "alembic upgrade head", cwd = "backend" }
+seed = { cmd = "python -m app.seed", cwd = "backend" }
+
+# ---------- test ----------
+[feature.test.dependencies]
+pytest = ">=9.1.1,<10"
+pytest-asyncio = ">=1.4.1,<2"
+httpx = ">=0.28.1,<0.29"
+
+[feature.test.tasks]
+test = { cmd = "pytest", cwd = "backend" }
+
+[feature.frontend.dependencies]
+streamlit = ">=1.66.1,<2"
+requests = ">=2.34.2,<3"
+websocket-client = ">=1.9.2,<2"
+plotly = ">=7.1.0,<8"
+
+[feature.frontend.tasks]
+# Locally the backend runs on localhost instead of the `backend` Compose service
+dev = { cmd = "streamlit run app.py --server.port 8501", cwd = "frontend", env = { BACKEND_URL = "http://localhost:8000", BACKEND_WS_URL = "ws://localhost:8000" } }
+
+[environments]
+# backend and backend-prod share a solve-group, so common packages get identical versions
+backend = { features = ["backend", "test"], solve-group = "backend" }
+backend-prod = { features = ["backend"], solve-group = "backend" }
+# Own solve-group: frontend version constraints never affect the backend
+frontend = { features = ["frontend"], solve-group = "frontend" }
