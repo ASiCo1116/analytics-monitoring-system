@@ -1,11 +1,10 @@
 import asyncio
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from alembic import context
 
 import app.models  # noqa: F401  (registers every table on Base.metadata)
 from app.core.config import settings
@@ -15,8 +14,11 @@ from app.db.base import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Use the same DATABASE_URL as the application ("%" must be escaped for ConfigParser)
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+# Use the same DATABASE_URL as the application
+# ("%" must be escaped for ConfigParser)
+config.set_main_option(
+    "sqlalchemy.url", settings.database_url.replace("%", "%%")
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

@@ -4,7 +4,8 @@ from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Predictable constraint/index names, so Alembic migrations can refer to them.
-# No "pk" entry: MariaDB always names the primary key PRIMARY and warns about custom names.
+# No "pk" entry: MariaDB always names the primary key PRIMARY and warns
+# about custom names.
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -26,4 +27,6 @@ class TimestampMixin:
     # Generated in Python rather than with the database's NOW(),
     # so the value never depends on the MariaDB session time zone.
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=utc_now, onupdate=utc_now
+    )

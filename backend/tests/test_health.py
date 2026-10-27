@@ -19,7 +19,8 @@ async def test_users_fixture_creates_one_user_per_role(db, users):
 
 
 def test_health_through_sync_client(sync_client):
-    # TestClient runs the app in another thread and event loop; NullPool keeps that safe
+    # TestClient runs the app in another thread and event loop;
+    # NullPool keeps that safe
     response = sync_client.get("/health")
 
     assert response.status_code == 200

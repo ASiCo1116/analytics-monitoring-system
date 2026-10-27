@@ -18,7 +18,10 @@ class Record(TimestampMixin, Base):
     # Free text; no separate category table
     category: Mapped[str] = mapped_column(String(50), index=True)
     description: Mapped[str | None] = mapped_column(Text)
-    # When the data itself happened (naive UTC); used for filtering and analytics
+    # When the data itself happened (naive UTC); used for filtering and
+    # analytics
     recorded_at: Mapped[datetime] = mapped_column(index=True)
     # Creator; decides who may update or delete the record
-    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"), index=True
+    )

@@ -19,15 +19,25 @@ class Metric(Base):
 
     __tablename__ = "metrics"
     __table_args__ = (
-        Index("ix_metrics_metric_recorded_at", "metric", "recorded_at"),  # analytics queries
-        Index("ix_metrics_server_metric_recorded_at", "server", "metric", "recorded_at"),  # history
+        # Analytics queries
+        Index("ix_metrics_metric_recorded_at", "metric", "recorded_at"),
+        # History queries
+        Index(
+            "ix_metrics_server_metric_recorded_at",
+            "server",
+            "metric",
+            "recorded_at",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     server: Mapped[str] = mapped_column(String(50))
-    metric: Mapped[MetricName] = mapped_column(Enum(MetricName, name="metric_name"))
+    metric: Mapped[MetricName] = mapped_column(
+        Enum(MetricName, name="metric_name")
+    )
     value: Mapped[float] = mapped_column(Double)
-    # Threshold at generation time, so changing it later does not rewrite history
+    # Threshold at generation time, so changing it later does not rewrite
+    # history
     threshold: Mapped[float] = mapped_column(Double)
     is_anomaly: Mapped[bool]
     recorded_at: Mapped[datetime] = mapped_column(index=True)

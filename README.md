@@ -20,6 +20,7 @@
 | `backend` | 後端 + 測試套件 | 本地開發、測試容器 |
 | `backend-prod` | 後端 | 後端 Docker 映像 |
 | `frontend` | 前端 | 本地開發、前端 Docker 映像 |
+| `lint` | ruff | 程式碼檢查與格式化 |
 
 ## Docker 部署
 
@@ -56,6 +57,15 @@ docker compose --profile test run --rm --build backend-test
 
 - `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose stop db-test` 只關閉測試資料庫，不影響主系統。
 - 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
+
+## 程式碼風格
+
+使用 [ruff](https://docs.astral.sh/ruff/) 檢查與格式化，設定在根目錄 `ruff.toml`（每行最多 80 字元）：
+
+```bash
+pixi run lint     # 檢查
+pixi run format   # 自動格式化
+```
 
 ## 本地運行
 

@@ -48,9 +48,19 @@ plotly = ">=7.1.0,<8"
 # Locally the backend runs on localhost instead of the `backend` Compose service
 dev = { cmd = "streamlit run app.py --server.port 8501", cwd = "frontend", env = { BACKEND_URL = "http://localhost:8000", BACKEND_WS_URL = "ws://localhost:8000" } }
 
+# ---------- lint ----------
+[feature.lint.tasks]
+lint = "ruff check backend frontend"
+format = "ruff format backend frontend"
+
+[feature.lint.dependencies]
+ruff = ">=0.17.2,<0.18"
+
 [environments]
 # backend and backend-prod share a solve-group, so common packages get identical versions
 backend = { features = ["backend", "test"], solve-group = "backend" }
 backend-prod = { features = ["backend"], solve-group = "backend" }
 # Own solve-group: frontend version constraints never affect the backend
 frontend = { features = ["frontend"], solve-group = "frontend" }
+# Only ruff: a dev tool, kept out of every runtime image
+lint = { features = ["lint"], no-default-feature = true }

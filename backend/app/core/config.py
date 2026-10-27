@@ -5,12 +5,17 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """All backend settings, read from environment variables (see .env.example)."""
+    """All backend settings, read from environment variables.
+
+    See .env.example for every variable and its default.
+    """
 
     # Later files win: the root .env is shared with Docker Compose,
     # backend/.env (optional) overrides values for local development.
     # Inside the container neither file exists; Compose injects the variables.
-    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"), extra="ignore"
+    )
 
     database_url: str
 
@@ -23,7 +28,11 @@ class Settings(BaseSettings):
 
     simulator_enabled: bool = True
     # NoDecode: read "a,b,c" as plain text instead of JSON, then split below
-    simulator_servers: Annotated[list[str], NoDecode] = ["server-1", "server-2", "server-3"]
+    simulator_servers: Annotated[list[str], NoDecode] = [
+        "server-1",
+        "server-2",
+        "server-3",
+    ]
     threshold_cpu: float = 90
     threshold_memory: float = 90
     threshold_temperature: float = 80

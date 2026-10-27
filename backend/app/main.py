@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy import select
@@ -28,10 +29,14 @@ app.middleware("http")(log_requests)
 
 
 @app.get("/health", tags=["health"])
-async def health(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
-    """Health check used by the Docker Compose healthcheck; also verifies the database connection."""
+async def health(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    """Used by the Compose healthcheck; also checks the database."""
     try:
         await db.execute(select(1))
     except DBAPIError as exc:
-        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+        raise HTTPException(
+            status_code=503, detail="Database unavailable"
+        ) from exc
     return {"status": "ok"}

@@ -1,0 +1,14 @@
+line-length = 80
+target-version = "py314"
+# Where first-party code lives, so `import app...` is sorted as our own package
+src = ["backend", "frontend"]
+
+[lint]
+# Ruff's defaults (pyflakes + core pycodestyle), plus:
+#   E501: report lines over line-length the formatter cannot wrap
+#   I:    sort imports
+extend-select = ["E501", "I"]
+
+[lint.isort]
+# backend/alembic/ is the migrations folder, not the alembic package
+known-third-party = ["alembic"]

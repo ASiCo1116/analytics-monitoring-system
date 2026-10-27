@@ -426,8 +426,10 @@ pytest + pytest-asyncio + httpx `AsyncClient(transport=ASGITransport(app))`，�
   | `backend` | backend + test | 本地開發、測試容器 | `backend` |
   | `backend-prod` | backend | 後端 Docker runtime | `backend` |
   | `frontend` | frontend | 本地開發、前端 Docker runtime | `frontend` |
+  | `lint` | lint（只有 ruff，不含 Python 預設依賴） | 程式碼檢查與格式化 | — |
 
   `backend` 與 `backend-prod` 同一個 solve-group，共同套件的版本完全相同。前端使用獨立的 solve-group，前端套件的版本限制不會影響後端。預設環境只含 Python，不直接使用。
+- 程式碼風格：ruff，設定在根目錄 `ruff.toml`（`line-length = 80`，lint 規則在預設之外加上 E501 與 import 排序），以 `pixi run lint`、`pixi run format` 執行。ruff 放在獨立的 `lint` 環境，不會進入任何執行用的映像。
 - 常用指令定義為各 feature 的 pixi tasks，並設定 `cwd`（後端 task 在 `backend/` 執行，前端在 `frontend/`），一律以 `-e` 指定環境執行，例如 `pixi run -e backend dev`、`pixi run -e frontend dev`。README 與測試容器都使用這些 task。runtime 映像不含 pixi，所以 `entrypoint.sh` 直接執行與 task 相同的指令（`alembic upgrade head`、`python -m app.seed`、`uvicorn`）：
   - 後端（`backend` feature）：`dev`（`uvicorn app.main:app --reload`）、`migrate`（`alembic upgrade head`）、`seed`（`python -m app.seed`）；`test` feature：`test`（`pytest`）
   - 前端（`frontend` feature）：`dev`（`streamlit run app.py`，task 的 `env` 設定 `BACKEND_URL=http://localhost:8000`、`BACKEND_WS_URL=ws://localhost:8000`）
