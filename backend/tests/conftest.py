@@ -4,7 +4,6 @@ Tests run against a dedicated MariaDB (the db-test service). Tables are
 created once per run and emptied after every test.
 """
 
-import bcrypt
 import pytest
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
@@ -14,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+from app.core.security import create_access_token, hash_password
 from app.db import session as db_session
 from app.db.base import Base
 from app.main import app
@@ -93,7 +93,7 @@ def sync_client():
 @pytest.fixture
 async def users(db) -> dict[Role, User]:
     """One active user per role; every password is TEST_PASSWORD."""
-    hashed = bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    hashed = hash_password(TEST_PASSWORD)
     created = {
         role: User(
             username=role.value,
@@ -106,3 +106,12 @@ async def users(db) -> dict[Role, User]:
     db.add_all(created.values())
     await db.commit()
     return created
+
+
+@pytest.fixture
+def auth_headers(users) -> dict[Role, dict[str, str]]:
+    """Authorization headers per role, e.g. headers=auth_headers[Role.admin]."""
+    return {
+        role: {"Authorization": f"Bearer {create_access_token(u.id, u.role)}"}
+        for role, u in users.items()
+    }

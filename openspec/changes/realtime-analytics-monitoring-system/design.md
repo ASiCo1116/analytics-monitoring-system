@@ -386,7 +386,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | `MARIADB_ROOT_PASSWORD` | `rootpass` | MariaDB root 密碼 |
 | `MARIADB_DATABASE` / `MARIADB_USER` / `MARIADB_PASSWORD` | `analytics` / `app` / `apppass` | 應用程式資料庫與帳號 |
 | `DATABASE_URL` | `mysql+asyncmy://app:apppass@db:3306/analytics` | 後端連線字串 |
-| `JWT_SECRET_KEY` | `change-me-in-production` | JWT 簽章密鑰 |
+| `JWT_SECRET_KEY` | `change-me-in-production-at-least-32-bytes` | JWT 簽章密鑰（HS256 建議至少 32 bytes） |
 | `JWT_EXPIRE_MINUTES` | `60` | Token 有效期 |
 | `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` / `SEED_VIEWER_PASSWORD` | `Admin@1234` / `User@1234` / `Viewer@1234` | 測試帳號密碼 |
 | `SIMULATOR_ENABLED` | `true` | 模擬器開關 |

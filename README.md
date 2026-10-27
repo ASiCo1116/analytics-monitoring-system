@@ -46,6 +46,28 @@ docker compose down            # 停止，保留資料
 docker compose down -v         # 停止並清除資料庫資料
 ```
 
+## 測試帳號
+
+後端啟動時會自動建立三個測試帳號（已存在就略過）。密碼取自 `.env`，以下是 `.env.example` 的預設值：
+
+| 角色 | 帳號 | 密碼 | 權限 |
+|---|---|---|---|
+| Admin | `admin` | `Admin@1234` | 全部功能，含系統管理 |
+| User | `user` | `User@1234` | 瀏覽、新增與匯入資料；只能修改、刪除自己建立的資料 |
+| Viewer | `viewer` | `Viewer@1234` | 只能瀏覽與下載 |
+
+## API 文件連結
+
+後端啟動後可開啟：
+
+| 文件 | 位址 |
+|---|---|
+| Swagger UI（可直接呼叫 API） | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+| OpenAPI JSON | http://localhost:8000/openapi.json |
+
+在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。所有 API 前綴為 `/api/v1`，例如登入是 `POST /api/v1/auth/login`。
+
 ## 執行測試
 
 後端測試在 Docker 中執行，使用獨立的 `db-test` 資料庫（資料只存在記憶體），不會影響正式資料：
@@ -55,7 +77,7 @@ cp .env.example .env    # 若尚未建立
 docker compose --profile test run --rm --build backend-test
 ```
 
-- `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose stop db-test` 只關閉測試資料庫，不影響主系統。
+- `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose rm -sf db-test` 停止並移除測試資料庫，不影響主系統（只 `stop` 會留下容器，之後主系統 `down` 時 network 被刪，下次測試會啟動失敗）。
 - 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
 
 ## 程式碼風格

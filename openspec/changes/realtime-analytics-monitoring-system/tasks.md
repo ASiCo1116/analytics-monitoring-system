@@ -21,13 +21,13 @@
 
 ## 3. 認證、角色與系統日誌
 
-- [ ] 3.1 撰寫 `app/core/security.py`（bcrypt 雜湊/驗證、超過 72 bytes 的密碼驗證直接回 False、JWT 簽發/解析），並在 `tests/conftest.py` 加入各角色 token 的 fixture；驗證：單元測試涵蓋雜湊驗證、超長密碼不拋例外、token 過期
-- [ ] 3.2 撰寫 `services/audit_service.py`（獨立 session、失敗不拋出）；驗證：單元測試確認寫入一筆日誌，以及 DB 錯誤時不拋例外
-- [ ] 3.3 撰寫 user/auth schemas 與 `routers/auth.py`（register、login 使用 OAuth2PasswordRequestForm）、`routers/users.py`（me），註冊與登入成功/失敗寫入系統日誌；驗證：測試涵蓋 `user-auth` spec 的註冊、登入、帳號停用情境，以及註冊回傳的 id 為版本 7 的 UUID、密碼超過 72 bytes 註冊回 422 且登入回 401、回應中的時間字串以 `Z` 結尾（建立共用的 `UtcDatetime` 輸出型別）
-- [ ] 3.4 撰寫 `deps.py`（`get_current_user` 每次讀 DB、`require_roles`）；驗證：測試涵蓋未帶 token、過期 token、停用後舊 token 回 403
-- [ ] 3.5 全域例外處理：未處理例外記 logger 與 `server_error` 系統日誌並回 500；驗證：測試用一個會拋例外的測試路由確認回應不含堆疊
-- [ ] 3.6 撰寫 `app/seed.py`（三個測試帳號，可重複執行）並加進 `entrypoint.sh`；驗證：重啟兩次後 users 表仍只有 3 個測試帳號；Swagger Authorize 以 admin 登入成功
-- [ ] 3.7 README 新增「測試帳號」與「API 文件連結」兩節；驗證：文件中的帳密可登入
+- [x] 3.1 撰寫 `app/core/security.py`（bcrypt 雜湊/驗證、超過 72 bytes 的密碼驗證直接回 False、JWT 簽發/解析），並在 `tests/conftest.py` 加入各角色 token 的 fixture；驗證：單元測試涵蓋雜湊驗證、超長密碼不拋例外、token 過期
+- [x] 3.2 撰寫 `services/audit_service.py`（獨立 session、失敗不拋出）；驗證：單元測試確認寫入一筆日誌，以及 DB 錯誤時不拋例外
+- [x] 3.3 撰寫 user/auth schemas 與 `routers/auth.py`（register、login 使用 OAuth2PasswordRequestForm）、`routers/users.py`（me），註冊與登入成功/失敗寫入系統日誌；驗證：測試涵蓋 `user-auth` spec 的註冊、登入、帳號停用情境，以及註冊回傳的 id 為版本 7 的 UUID、密碼超過 72 bytes 註冊回 422 且登入回 401、回應中的時間字串以 `Z` 結尾（建立共用的 `UtcDatetime` 輸出型別）
+- [x] 3.4 撰寫 `deps.py`（`get_current_user` 每次讀 DB、`require_roles`）；驗證：測試涵蓋未帶 token、過期 token、停用後舊 token 回 403
+- [x] 3.5 全域例外處理：未處理例外記 logger 與 `server_error` 系統日誌並回 500；驗證：測試用一個會拋例外的測試路由確認回應不含堆疊
+- [x] 3.6 撰寫 `app/seed.py`（三個測試帳號，可重複執行）並加進 `entrypoint.sh`；驗證：重啟兩次後 users 表仍只有 3 個測試帳號；Swagger Authorize 以 admin 登入成功
+- [x] 3.7 README 新增「測試帳號」與「API 文件連結」兩節；驗證：文件中的帳密可登入
 
 ## 4. 資料記錄模組
 
