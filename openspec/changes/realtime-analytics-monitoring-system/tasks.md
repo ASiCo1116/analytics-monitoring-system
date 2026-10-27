@@ -48,9 +48,9 @@
 
 ## 6. 資料分析模組
 
-- [ ] 6.1 撰寫 analytics schemas（source、篩選驗證：metrics 必填 metric、start ≤ end、預設時間範圍）；驗證：測試涵蓋兩個 422 情境
-- [ ] 6.2 撰寫 `services/analytics_service.py` 的 summary、groups、trend（`func.date_format` 分桶）與對應路由；驗證：測試以已知資料驗證 count/sum/avg/max/min、空資料回 null、依分類與依伺服器分組、依小時趨勢
-- [ ] 6.3 撰寫 `services/excel_service.py` 與 `GET /analytics/export`（四個工作表、明細上限 10,000 筆並註明）；驗證：測試以 openpyxl 讀回確認有四個工作表、Viewer 可下載
+- [x] 6.1 撰寫 analytics schemas（source、篩選驗證：metrics 必填 metric、start ≤ end、預設時間範圍）；驗證：測試涵蓋兩個 422 情境
+- [x] 6.2 撰寫 `services/analytics_service.py` 的 summary、groups、trend（`func.date_format` 分桶）與對應路由；驗證：測試以已知資料驗證 count/sum/avg/max/min、空資料回 null、依分類與依伺服器分組、依小時趨勢
+- [x] 6.3 撰寫 `services/excel_service.py` 與 `GET /analytics/export`（四個工作表、明細上限 10,000 筆並註明）；驗證：測試以 openpyxl 讀回確認有四個工作表、Viewer 可下載
 
 ## 7. 系統管理模組（後端）
 

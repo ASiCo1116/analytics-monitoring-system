@@ -316,7 +316,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | POST | `/api/v1/records/import` | Admin/User | multipart 上傳 CSV/JSON，201 `{imported}` 或 422 `{detail: {errors:[{row, field, message}]}}`（外層沿用統一的 `detail` 格式；整個檔案的問題以 row 0 表示） |
 | GET | `/api/v1/analytics/summary` | 登入 | `source, start, end, category \| metric, server` |
 | GET | `/api/v1/analytics/groups` | 登入 | 同上，records 依分類、metrics 依伺服器 |
-| GET | `/api/v1/analytics/trend` | 登入 | 同上 + `interval=minute\|hour\|day` |
+| GET | `/api/v1/analytics/trend` | 登入 | 同上 + `interval=minute\|hour\|day`（預設 hour）；`bucket` 為區間起點，以 UTC 回傳 |
 | GET | `/api/v1/analytics/export` | 登入 | 同上，回傳 .xlsx |
 | GET | `/api/v1/metrics` | Admin | 即時資料歷史：`server, metric, start, end, anomaly_only, page, page_size` |
 | GET | `/api/v1/admin/users` | Admin | 使用者列表：`role, is_active, q, page, page_size` |
@@ -325,6 +325,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | GET | `/api/v1/admin/db-status` | Admin | 資料庫狀態 |
 | WS | `/ws/metrics?token=<JWT>` | 登入 | 每秒推送 |
 
+- 分析 API 的 `sum`、`avg` 四捨五入到小數 4 位，去掉 DOUBLE 加總的浮點誤差。source=metrics 沒給 `start` 時，查詢 `end`（未給則為現在）之前 24 小時。
 - 分頁回應統一：`{"items": [...], "total": 123, "page": 1, "page_size": 20}`。
 - 即時資料歷史放在 `/api/v1/metrics`（資源名稱）而不是 `/admin/...`，權限由 dependency 控制；未來若要開放給其他角色只需改權限。
 - 錯誤格式沿用 FastAPI 預設 `{"detail": ...}`；422 驗證錯誤用預設格式；全域攔截未處理例外 → 記 logger.exception 與 system_logs（`server_error`），回 500 `{"detail": "Internal server error"}`，不洩漏堆疊。
@@ -361,7 +362,7 @@ Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日
 
 ### 10. Excel 匯出
 
-用 `openpyxl` 建立四個工作表（摘要、分組聚合、趨勢（依小時）、明細），寫入 `BytesIO` 後以 `StreamingResponse` 回傳，`Content-Disposition` 檔名如 `analytics_records_20261027_1530.xlsx`。查詢重用 analytics service 的函式，確保與畫面數字一致。
+用 `openpyxl` 建立四個工作表（摘要、分組聚合、趨勢（依小時）、明細），寫入 `BytesIO` 後以 `Response` 回傳，`Content-Disposition` 檔名如 `analytics_records_20261027_1530.xlsx`。查詢重用 analytics service 的函式，確保與畫面數字一致。產生活頁簿是 CPU 工作，以 `asyncio.to_thread` 在執行緒中執行，避免卡住模擬器與 WebSocket 推送。Excel 不支援時區，工作表中的時間一律轉成 `APP_TIMEZONE` 的當地時間，並在摘要工作表註明時區。
 
 ### 11. 日誌：兩層
 
