@@ -43,3 +43,7 @@ async def test_database_error_is_logged_not_raised(monkeypatch, caplog):
     await audit_service.log("login_failed", "bad password for alice")
 
     assert "Could not write system log login_failed" in caplog.text
+    # An unreachable database is expected: one line, no traceback
+    [record] = caplog.records
+    assert record.levelname == "ERROR"
+    assert record.exc_info is None

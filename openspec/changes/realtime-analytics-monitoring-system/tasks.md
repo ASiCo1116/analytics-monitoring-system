@@ -54,10 +54,10 @@
 
 ## 7. 系統管理模組（後端）
 
-- [ ] 7.1 撰寫 `GET /admin/users` 與 `PATCH /admin/users/{user_id}`（自我保護、寫入 role_change/user_status_change 日誌）；驗證：測試涵蓋調整角色後權限立即改變、Admin 停用自己回 400、不存在的 UUID 回 404、非 UUID 格式回 422
-- [ ] 7.2 撰寫 `GET /admin/logs`（篩選與分頁）；驗證：測試確認錯誤登入後可用 action=login_failed 查到
-- [ ] 7.3 撰寫 `GET /admin/db-status`（連線狀態與回應時間、連線池、各表筆數、暫存區、上次寫入資訊，不用原生 SQL）；驗證：測試確認欄位齊全；手動停掉 db 時任一受保護 API（含此端點）回 503 而非 500
-- [ ] 7.4 以 `grep -rn "text(" backend/app` 確認沒有原生 SQL，並跑完整後端測試；驗證：grep 無結果、所有測試通過
+- [x] 7.1 撰寫 `GET /admin/users` 與 `PATCH /admin/users/{user_id}`（自我保護、寫入 role_change/user_status_change 日誌）；驗證：測試涵蓋調整角色後權限立即改變、Admin 停用自己或把自己改成 User 都回 400 且資料不變、不存在的 UUID 回 404、非 UUID 格式回 422
+- [x] 7.2 撰寫 `GET /admin/logs`（篩選與分頁）；驗證：測試確認錯誤登入後可用 action=login_failed 查到
+- [x] 7.3 撰寫 `GET /admin/db-status`（連線狀態與回應時間、連線池、各表筆數、暫存區、上次寫入資訊，不用原生 SQL）；驗證：測試確認欄位齊全；手動停掉 db 時任一受保護 API（含此端點）回 503 而非 500
+- [x] 7.4 以 `grep -rn "text(" backend/app` 確認沒有原生 SQL，並跑完整後端測試；驗證：grep 無結果、所有測試通過
 
 ## 8. Streamlit 前端
 

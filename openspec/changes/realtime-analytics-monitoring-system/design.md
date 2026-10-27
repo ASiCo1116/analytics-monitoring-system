@@ -334,7 +334,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 - **simulator**：每台伺服器每個指標保存「目前值」，每秒加上小幅隨機變動（隨機漫步）並限制在範圍內；另有約 1% 機率產生尖峰（直接拉到閾值以上），讓使用者幾分鐘內就看得到告警。用 `asyncio.sleep(1)` 迴圈。
 - **ConnectionManager**：保存已接受的 WebSocket 清單；`broadcast` 同時對所有連線 `send_json`（每個連線最多等 2 秒），失敗或逾時的連線移除，一個卡住的客戶端不會拖慢其他人。
-- **MetricBuffer + 批次寫入任務**：`add()` 把資料放進 list，若筆數 ≥ `BATCH_SIZE` 就 `set()` 一個 `asyncio.Event`；寫入任務用 `asyncio.wait_for(event.wait(), timeout=BATCH_INTERVAL_SECONDS)` 等待，醒來（不論 event 或 timeout）先 `event.clear()`；暫存區為空就跳過（不寫入、不更新上次寫入資訊），否則取出全部、`add_all` 後 commit，並記下「上次寫入時間／筆數／原因（interval 或 size）」給資料庫狀態 API。寫入失敗把資料放回最前面（超過 10,000 筆丟最舊的），並在下一次嘗試前固定等滿一個 `BATCH_INTERVAL_SECONDS`，這段期間不因筆數條件提早喚醒，避免資料庫故障時每秒重試；失敗事件照常交給 `audit_service`（資料庫連不上時它只會記到 stdout）。
+- **MetricBuffer + 批次寫入任務**：`add()` 把資料放進 list，若筆數 ≥ `BATCH_SIZE` 就 `set()` 一個 `asyncio.Event`；寫入任務用 `asyncio.wait_for(event.wait(), timeout=BATCH_INTERVAL_SECONDS)` 等待，醒來（不論 event 或 timeout）先 `event.clear()`；暫存區為空就跳過（不寫入、不更新上次寫入資訊），否則取出全部、`add_all` 後 commit，並記下「上次寫入時間／筆數／原因（interval 或 size）」給資料庫狀態 API。寫入失敗把資料放回最前面（超過 10,000 筆丟最舊的），並在下一次嘗試前固定等滿一個 `BATCH_INTERVAL_SECONDS`，這段期間不因筆數條件提早喚醒，避免資料庫故障時每秒重試；失敗事件照常交給 `audit_service`（資料庫連不上時它只會在 stdout 記一行 ERROR，不印堆疊，避免每次重試都刷出整段 traceback）。
 - 三者都在 FastAPI `lifespan` 中以 `asyncio.create_task` 啟動；關閉時先取消模擬器與寫入任務，再直接執行最後一次 flush，避免與寫入任務同時寫入。
 - 預設值說明：每秒 9 筆，10 秒約 90 筆，所以預設下通常是「定期」觸發；把伺服器數調多或 `BATCH_SIZE` 調小就會看到「條件」觸發。兩條路徑都有單元測試（以小數值設定驗證）。
 
@@ -448,6 +448,7 @@ pytest + pytest-asyncio + httpx `AsyncClient(transport=ASGITransport(app))`，�
 - [Streamlit 重新整理瀏覽器就會登出] → spec 未要求，記為已知限制；比把 token 存在 cookie／query string 安全也簡單。
 - [WebSocket 連線後 token 過期仍持續推送] → 推送內容為非敏感的模擬資料，可接受。
 - [metrics 每天約 77 萬筆，長時間運作後查詢變慢] → 已建複合索引；分析預設最近 24 小時；Excel 明細上限 10,000 筆；資料清理排程列為非目標。
+- [資料庫狀態 API 以 `COUNT(*)` 計算各表精確筆數，metrics 累積到數千萬筆後這支 API 會變慢（InnoDB 沒有現成的精確筆數）] → 目前規模可接受；若成為問題，改用 `information_schema.TABLES.TABLE_ROWS` 的近似值或加上快取。
 - [`func.date_format` 綁定 MariaDB/MySQL] → 資料庫已選定 MariaDB，可接受；測試也用 MariaDB 而非 SQLite，避免方言差異。
 - [users 主鍵改為 16 bytes 的 UUID，主鍵與外鍵索引比 BIGINT 大] → 使用者數量少，影響可忽略；UUIDv7 時間有序，避免隨機寫入。
 - [時間時區混淆] → 統一資料庫存 UTC、API 回 ISO 8601 帶 Z、只在前端轉換。

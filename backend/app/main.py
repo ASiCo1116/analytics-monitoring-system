@@ -15,7 +15,7 @@ from app.models import LogLevel, MetricName
 from app.realtime.buffer import metric_buffer
 from app.realtime.manager import manager
 from app.realtime.simulator import MetricSimulator, run_simulator
-from app.routers import analytics, auth, metrics, records, users, ws
+from app.routers import admin, analytics, auth, metrics, records, users, ws
 from app.services import audit_service
 
 setup_logging(settings.log_level)
@@ -115,6 +115,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(records.router, prefix="/api/v1")
 app.include_router(metrics.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ws.router)
 
 

@@ -3,9 +3,10 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import BigInteger, Enum, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, utc_now
+from app.models.user import User
 
 
 class LogLevel(StrEnum):
@@ -32,3 +33,10 @@ class SystemLog(Base):
     # 45 characters: long enough for IPv6
     ip_address: Mapped[str | None] = mapped_column(String(45))
     created_at: Mapped[datetime] = mapped_column(default=utc_now, index=True)
+
+    # lazy="raise": async code cannot load it implicitly, queries must ask
+    user: Mapped[User | None] = relationship(lazy="raise")
+
+    @property
+    def username(self) -> str | None:
+        return self.user.username if self.user else None

@@ -3,6 +3,8 @@
 import logging
 import uuid
 
+from sqlalchemy.exc import OperationalError
+
 from app.db.session import SessionLocal
 from app.models import LogLevel, SystemLog
 
@@ -37,6 +39,12 @@ async def log(
                 )
             )
             await session.commit()
+    except OperationalError as exc:
+        # Database unreachable: expected while it is down and may repeat
+        # every few seconds (failed metric writes), so one line, no traceback
+        logger.error(
+            "Could not write system log %s: %s (%s)", action, message, exc.orig
+        )
     except Exception:
         # Deliberately broad: audit logging must not affect the request
         logger.exception("Could not write system log %s: %s", action, message)
