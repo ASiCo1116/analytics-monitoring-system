@@ -15,7 +15,7 @@
 - [x] 2.1 撰寫 `app/db/base.py`（DeclarativeBase、created_at/updated_at mixin，以 Python 端 `default`／`onupdate` 產生 UTC 時間，不用 `server_default`）與 `app/db/session.py`（async engine 含連線池參數、async_sessionmaker、`get_db`）；驗證：`/health` 改為同時檢查 DB 連線，DB 停掉時回 503
 - [x] 2.2 依 design.md「DB Schema」撰寫四個模型（users、records、metrics、system_logs，含 ENUM、FK、索引；`users.id` 為 UUIDv7，以標準庫 `uuid.uuid7` 為預設值，`records.owner_id`／`system_logs.user_id` 為 UUID 外鍵）；驗證：`python -c "import app.models"` 無錯誤
 - [x] 2.3 以 `alembic init -t async` 建立 Alembic，設定 `env.py` 讀 settings 與 `Base.metadata`，autogenerate 初始遷移並人工檢查 ENUM、索引，以及使用者 id 與外鍵欄位為 MariaDB `UUID` 型別（不是 `CHAR(32)`）；驗證：遷移檔中沒有 `sa.text(...)`，`alembic upgrade head` 後資料庫有 4 張表與 `alembic_version`，`SHOW CREATE TABLE users` 顯示 `id` 為 `uuid`，`alembic downgrade base` 可完整回退
-- [ ] 2.4 `entrypoint.sh` 加入 `alembic upgrade head`（`set -e`）；驗證：刪除 volume 重新 `up` 後表自動建立
+- [x] 2.4 `entrypoint.sh` 加入 `alembic upgrade head`（`set -e`）；驗證：刪除 volume 重新 `up` 後表自動建立
 - [x] 2.5 在 compose 加入 `profiles: ["test"]` 的 `db-test` 與 `backend-test`（後端 Dockerfile `test` target，執行 `pixi run -e backend test`），撰寫 `tests/conftest.py`（建立/清除資料表、測試 engine 使用 `NullPool`、pytest-asyncio loop scope 設為 session、AsyncClient 與 WebSocket 用的 TestClient、模擬器停用、建立各角色使用者的 fixture，測試資料庫名稱必須以 `_test` 結尾）；驗證：`docker compose --profile test run --rm backend-test` 執行一個 `/health` 測試通過
 - [x] 2.6 README 新增「執行測試」一節；驗證：照文件指令可跑測試
 
@@ -71,9 +71,9 @@
 
 ## 9. 文件與整合驗證
 
-- [ ] 9.1 README 補齊「專案介紹」、「系統架構圖」（複製 design.md 的 Mermaid 架構圖與 ER 圖）、「已知限制與改進方向」；驗證：推到 GitHub 後 Mermaid 圖正確顯示
-- [ ] 9.2 全新環境端對端驗證：`docker compose down -v` → 照 README 從頭操作，逐一走過 7 個 spec 的主要情境（含 down/up 後資料保留）；驗證：所有情境符合，問題修正後重跑
-- [ ] 9.3 執行 `openspec validate realtime-analytics-monitoring-system --strict` 並確認 tasks 全部勾選；驗證：validate 通過
+- [x] 9.1 README 補齊「專案介紹」、「系統架構圖」（複製 design.md 的 Mermaid 架構圖與 ER 圖）、「已知限制與改進方向」；驗證：推到 GitHub 後 Mermaid 圖正確顯示
+- [x] 9.2 全新環境端對端驗證：`docker compose down -v` → 照 README 從頭操作，逐一走過 7 個 spec 的主要情境（含 down/up 後資料保留）；驗證：所有情境符合，問題修正後重跑
+- [x] 9.3 執行 `openspec validate realtime-analytics-monitoring-system --strict` 並確認 tasks 全部勾選；驗證：validate 通過
 
 ## Workflow follow-up
 

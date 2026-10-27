@@ -2,6 +2,137 @@
 
 即時資料分析與監控系統：FastAPI 後端、Streamlit 前端、MariaDB 資料庫，以 Docker Compose 一鍵啟動。
 
+## 專案介紹
+
+系統模擬多台伺服器的 CPU、記憶體與溫度指標，每秒即時推送到瀏覽器，超過閾值時以紅色標示並列入告警；同時提供手動資料記錄的管理、統計分析與 Excel 匯出，並依角色控管權限。
+
+| 功能 | 內容 |
+|---|---|
+| 即時監控 | 每秒產生 3 台伺服器 × 3 種指標，經 WebSocket 推送；數值卡片、最近 60 秒折線圖（閾值線、紅色異常點）、柱狀圖、最近 20 筆告警；資料每 10 秒或滿 100 筆批次寫入資料庫 |
+| 資料記錄 | 新增、查詢（分頁、分類／日期／數值／關鍵字篩選、排序）、修改、刪除；CSV/JSON 批量匯入，任一列有錯就整批不匯入並列出列號 |
+| 資料分析 | 針對資料記錄或即時監控資料計算筆數、總計、平均、最大、最小；依分類或伺服器分組、依分鐘／小時／天的趨勢；下載 Excel（摘要、分組、趨勢、明細四個工作表） |
+| 系統管理 | 使用者角色與啟用狀態管理、系統日誌查詢、資料庫狀態（連線、連線池、各表筆數、批次寫入狀態）、即時資料歷史查詢 |
+| 認證與權限 | JWT 登入，三種角色：Admin（全部功能）、User（新增與匯入資料，只能改刪自己建立的）、Viewer（只能瀏覽與下載） |
+
+## 系統架構圖
+
+後端是單一 uvicorn 行程：REST API、WebSocket 推送、模擬器與批次寫入都在同一個行程內；前端在容器內呼叫後端，不經過瀏覽器。
+
+```mermaid
+flowchart LR
+    browser["👤 瀏覽器"]
+
+    subgraph net["Docker network: app-net"]
+        direction LR
+        subgraph fe["frontend 容器 :8501"]
+            st["Streamlit 多頁面應用<br/>session_state 存 JWT"]
+            wsc["WebSocket 接收執行緒<br/>（每個使用者 session 一條）"]
+        end
+
+        subgraph be["backend 容器 :8000（1 個 uvicorn worker）"]
+            api["REST API /api/v1<br/>JWT + 角色檢查"]
+            wsr["WebSocket /ws/metrics"]
+            gen["模擬器背景任務<br/>每秒 3 台 × 3 指標"]
+            hub["ConnectionManager<br/>廣播給所有連線"]
+            buf["MetricBuffer<br/>記憶體暫存區"]
+            writer["批次寫入背景任務<br/>每 10 秒 或 滿 100 筆"]
+        end
+
+        db[("db 容器 :3306<br/>MariaDB 11.7")]
+    end
+
+    vol[("volume: db_data")]
+
+    browser -- "HTTP :8501" --> st
+    browser -. "Swagger :8000/docs" .-> api
+    st -- "REST (requests)" --> api
+    wsc <-- "WebSocket" --> wsr
+    gen --> hub --> wsr
+    gen --> buf --> writer
+    api -- "SQLAlchemy async ORM<br/>asyncmy + 連線池" --> db
+    writer -- "ORM 批次寫入" --> db
+    db --- vol
+```
+
+### 即時資料流
+
+```mermaid
+sequenceDiagram
+    participant G as 模擬器（每秒）
+    participant M as ConnectionManager
+    participant B as MetricBuffer
+    participant W as 批次寫入任務
+    participant DB as MariaDB
+    participant F as Streamlit 接收執行緒
+
+    G->>G: 產生 9 筆指標並判斷 is_anomaly
+    G->>M: broadcast(批次)
+    M-->>F: {"type":"metrics","data":[...]}
+    G->>B: add(批次)
+    alt 暫存 ≥ 100 筆（條件觸發）
+        B->>W: 喚醒
+    end
+    W->>W: 等待「喚醒」或「10 秒到」
+    W->>B: 取出全部
+    W->>DB: session.add_all() + commit
+    alt 寫入失敗
+        W->>B: 放回暫存區，下次重試
+    end
+```
+
+### 資料庫結構
+
+使用者 id 為 UUIDv7，其餘資料表使用自增整數主鍵；時間一律以 UTC 儲存，前端轉成 `APP_TIMEZONE`（預設 Asia/Taipei）顯示。
+
+```mermaid
+erDiagram
+    users ||--o{ records : "建立"
+    users ||--o{ system_logs : "觸發（可為空）"
+
+    users {
+        UUID id PK "UUIDv7"
+        VARCHAR(50) username UK
+        VARCHAR(255) email UK
+        VARCHAR(255) hashed_password
+        ENUM role "admin | user | viewer"
+        BOOLEAN is_active
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    records {
+        BIGINT id PK
+        VARCHAR(200) title
+        DOUBLE value
+        VARCHAR(50) category
+        TEXT description "nullable"
+        DATETIME recorded_at "資料時間戳"
+        UUID owner_id FK
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    metrics {
+        BIGINT id PK
+        VARCHAR(50) server
+        ENUM metric "cpu | memory | temperature"
+        DOUBLE value
+        DOUBLE threshold "產生當下的閾值"
+        BOOLEAN is_anomaly
+        DATETIME recorded_at
+    }
+
+    system_logs {
+        BIGINT id PK
+        ENUM level "INFO | WARNING | ERROR"
+        VARCHAR(50) action
+        VARCHAR(500) message
+        UUID user_id FK "nullable"
+        VARCHAR(45) ip_address "nullable"
+        DATETIME created_at
+    }
+```
+
 ## 技術棧
 
 | 層 | 技術 |
@@ -58,6 +189,20 @@ docker compose down -v         # 停止並清除資料庫資料
 
 資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料（大多屬於 `user`，少部分屬於 `admin`）。另有 `sample_data/records.csv`（50 筆）可用來測試匯入功能。
 
+## 主要設定
+
+所有設定都在 `.env`（由 `.env.example` 複製），每個變數都有說明與可直接使用的預設值。常調整的有：
+
+| 變數 | 預設值 | 說明 |
+|---|---|---|
+| `THRESHOLD_CPU` / `THRESHOLD_MEMORY` / `THRESHOLD_TEMPERATURE` | `90` / `90` / `80` | 異常閾值，數值大於閾值即為異常 |
+| `SIMULATOR_ENABLED` / `SIMULATOR_SERVERS` | `true` / `server-1,server-2,server-3` | 模擬器開關與伺服器清單 |
+| `BATCH_INTERVAL_SECONDS` / `BATCH_SIZE` | `10` / `100` | 批次寫入的時間與筆數條件 |
+| `JWT_EXPIRE_MINUTES` | `60` | 登入有效時間 |
+| `APP_TIMEZONE` | `Asia/Taipei` | 顯示時區；沒帶時區的輸入時間也以此解讀 |
+
+修改後執行 `docker compose up -d` 重新建立對應的容器即可生效。
+
 ## API 文件連結
 
 後端啟動後可開啟：
@@ -108,10 +253,11 @@ pixi run format   # 自動格式化
    docker compose up -d db
    ```
 
-3. 建立資料表並啟動後端（http://localhost:8000/docs）：
+3. 建立資料表、測試帳號，並啟動後端（http://localhost:8000/docs）：
 
    ```bash
    pixi run -e backend migrate
+   pixi run -e backend seed      # 測試帳號與範例資料（可重複執行）
    pixi run -e backend dev
    ```
 
@@ -120,3 +266,46 @@ pixi run format   # 自動格式化
    ```bash
    pixi run -e frontend dev
    ```
+
+## 專案結構
+
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── core/        # 設定、日誌、JWT 與密碼雜湊
+│   │   ├── db/          # engine、session、Base
+│   │   ├── models/      # users、records、metrics、system_logs
+│   │   ├── schemas/     # Pydantic 輸入輸出
+│   │   ├── routers/     # API 路由（只處理 HTTP）
+│   │   ├── services/    # 商業邏輯與查詢
+│   │   ├── realtime/    # 模擬器、WebSocket 連線管理、批次寫入
+│   │   ├── deps.py      # 共用 dependency：session、目前使用者、角色
+│   │   ├── main.py      # 建立 app、lifespan 背景任務、例外處理
+│   │   └── seed.py      # 測試帳號與範例資料
+│   ├── alembic/         # 資料庫遷移
+│   └── tests/
+├── frontend/
+│   ├── app.py           # 依登入狀態與角色組出頁面
+│   ├── views/           # 登入、即時監控、資料記錄、資料分析、系統管理
+│   └── lib/             # API 呼叫、WebSocket 接收執行緒、圖表、共用元件
+├── sample_data/records.csv
+├── openspec/            # 需求規格與設計文件
+├── docker-compose.yml
+├── pixi.toml / pixi.lock
+└── .env.example
+```
+
+完整的設計決策（時區規則、API 一覽、批次寫入與 WebSocket 認證的細節等）見 [design.md](openspec/changes/realtime-analytics-monitoring-system/design.md)。
+
+## 已知限制與改進方向
+
+- **單一後端行程，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 行程內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
+- **重新整理瀏覽器頁面需要重新登入**：token 只存在 Streamlit 的 session，不存 cookie。
+- **WebSocket 連線後 token 過期仍會繼續推送**：token 只在連線時檢查；推送內容是非敏感的模擬資料。斷線重連時會重新檢查，過期就登出。
+- **每個瀏覽器分頁一條 WebSocket 接收執行緒**：直接關閉分頁時執行緒不會立刻結束，超過 10 分鐘沒有使用才會自行關閉。
+- **metrics 資料沒有清理機制**：預設每天約 78 萬筆。分析預設只查最近 24 小時、Excel 明細最多 10,000 筆，但資料庫狀態頁以 `COUNT(*)` 計算各表筆數，長期累積後會變慢。改進方向：定期刪除或彙總舊資料、筆數改用近似值。
+- **趨勢分桶使用固定時差**：MariaDB 官方映像沒有時區名稱表，所以用 `APP_TIMEZONE` 當下的時差換算。台灣沒有夏令時間不受影響；有夏令時間的時區在切換日會差 1 小時。
+- **閾值只能透過環境變數調整**，無法在介面上修改。
+- **沒有** refresh token、忘記密碼、Email 驗證與刪除使用者；也未處理 HTTPS、反向代理與正式環境的密鑰管理。
+- **前端沒有自動化測試**：後端有完整的 pytest 測試，前端以手動操作驗證。
