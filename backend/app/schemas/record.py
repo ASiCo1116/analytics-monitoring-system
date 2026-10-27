@@ -9,7 +9,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.common import LocalDatetime, UtcDatetime
+from app.schemas.common import LocalDatetime, PageParams, UtcDatetime
 
 # Leading/trailing spaces are removed first, so "   " counts as empty
 Title = Annotated[
@@ -71,11 +71,9 @@ class RecordRead(BaseModel):
     updated_at: UtcDatetime
 
 
-class RecordListParams(BaseModel):
+class RecordListParams(PageParams):
     """Query parameters of GET /records."""
 
-    page: int = Field(1, ge=1)
-    page_size: int = Field(20, ge=1, le=100)
     category: str | None = None
     min_value: float | None = None
     max_value: float | None = None

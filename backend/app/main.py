@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -10,18 +11,50 @@ from app.core.config import settings
 from app.core.logging import log_requests, setup_logging
 from app.db.session import engine
 from app.deps import DbSession, client_ip
-from app.models import LogLevel
-from app.routers import auth, records, users
+from app.models import LogLevel, MetricName
+from app.realtime.buffer import metric_buffer
+from app.realtime.manager import manager
+from app.realtime.simulator import MetricSimulator, run_simulator
+from app.routers import auth, metrics, records, users, ws
 from app.services import audit_service
 
 setup_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 
 
+def start_realtime_tasks() -> list[asyncio.Task]:
+    """Start the simulator and the batch writer in this process."""
+    simulator = MetricSimulator(
+        settings.simulator_servers,
+        {
+            MetricName.cpu: settings.threshold_cpu,
+            MetricName.memory: settings.threshold_memory,
+            MetricName.temperature: settings.threshold_temperature,
+        },
+    )
+    logger.info(
+        "Simulator started for %s; batch writes every %ss or %d metrics",
+        ", ".join(settings.simulator_servers),
+        settings.batch_interval_seconds,
+        settings.batch_size,
+    )
+    return [
+        asyncio.create_task(run_simulator(simulator, manager, metric_buffer)),
+        asyncio.create_task(metric_buffer.run()),
+    ]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Background tasks (simulator, batch writer) start here in later tasks.
+    tasks = start_realtime_tasks() if settings.simulator_enabled else []
     yield
+    # Stop both tasks first, then write what is left ourselves, so two
+    # writes never run at the same time
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    if tasks:
+        await metric_buffer.flush("shutdown")
     await engine.dispose()
 
 
@@ -80,6 +113,8 @@ async def database_unavailable(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(records.router, prefix="/api/v1")
+app.include_router(metrics.router, prefix="/api/v1")
+app.include_router(ws.router)
 
 
 @app.get("/health", tags=["health"])

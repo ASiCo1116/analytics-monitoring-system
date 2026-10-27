@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from pydantic import AfterValidator, BaseModel, PlainSerializer
+from pydantic import AfterValidator, BaseModel, Field, PlainSerializer
 
 from app.core.config import settings
 
@@ -42,3 +42,10 @@ class Page[T](BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class PageParams(BaseModel):
+    """Pagination query parameters shared by every list endpoint."""
+
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=100)

@@ -40,11 +40,11 @@
 
 ## 5. 即時監控模組（後端）
 
-- [ ] 5.1 撰寫 `realtime/simulator.py`（隨機漫步 + 約 1% 尖峰、閾值判斷 `>`）；驗證：單元測試確認一次產生 9 筆、數值在範圍內、等於閾值不算異常
-- [ ] 5.2 撰寫 `realtime/buffer.py`（MetricBuffer、asyncio.Event 條件觸發且醒來即 clear、timeout 定期觸發、空暫存區不寫入、失敗放回並等滿一個週期才重試、10,000 筆上限、記錄上次寫入資訊）；驗證：單元測試涵蓋 `realtime-monitoring` spec 的定期、條件、DB 失敗後不提早重試、關閉時 flush 情境
-- [ ] 5.3 撰寫 `realtime/manager.py`（ConnectionManager）與 `routers/ws.py`（先 accept 再驗證 query token，失敗以 1008 關閉）；驗證：TestClient 測試無效 token 收到 1008、有效 token 可連線並收到廣播；另以真實 uvicorn 加 websocket-client 手動確認無效 token 收到 close code 1008，而不是 HTTP 403
-- [ ] 5.4 在 `main.py` lifespan 啟動模擬器與批次寫入任務、關閉時先取消兩者再執行最後一次 flush，受 `SIMULATOR_ENABLED` 控制；驗證：`docker compose up` 後 30 秒內 metrics 表有資料，`docker compose logs backend` 看得到批次寫入日誌
-- [ ] 5.5 撰寫 `GET /api/v1/metrics`（Admin 歷史查詢：伺服器/指標/時間/只看異常/分頁）；驗證：測試涵蓋篩選與 User 403
+- [x] 5.1 撰寫 `realtime/simulator.py`（隨機漫步 + 約 1% 尖峰、閾值判斷 `>`）；驗證：單元測試確認一次產生 9 筆、數值在範圍內、等於閾值不算異常
+- [x] 5.2 撰寫 `realtime/buffer.py`（MetricBuffer、asyncio.Event 條件觸發且醒來即 clear、timeout 定期觸發、空暫存區不寫入、失敗放回並等滿一個週期才重試、10,000 筆上限、記錄上次寫入資訊）；驗證：單元測試涵蓋 `realtime-monitoring` spec 的定期、條件、DB 失敗後不提早重試、關閉時 flush 情境
+- [x] 5.3 撰寫 `realtime/manager.py`（ConnectionManager）與 `routers/ws.py`（先 accept 再驗證 query token，失敗以 1008 關閉）；驗證：TestClient 測試無效 token 收到 1008、有效 token 可連線並收到廣播；另以真實 uvicorn 加 websocket-client 手動確認無效 token 收到 close code 1008，而不是 HTTP 403
+- [x] 5.4 在 `main.py` lifespan 啟動模擬器與批次寫入任務、關閉時先取消兩者再執行最後一次 flush，受 `SIMULATOR_ENABLED` 控制；驗證：`docker compose up` 後 30 秒內 metrics 表有資料，`docker compose logs backend` 看得到批次寫入日誌
+- [x] 5.5 撰寫 `GET /api/v1/metrics`（Admin 歷史查詢：伺服器/指標/時間/只看異常/分頁）；驗證：測試涵蓋篩選與 User 403
 
 ## 6. 資料分析模組
 

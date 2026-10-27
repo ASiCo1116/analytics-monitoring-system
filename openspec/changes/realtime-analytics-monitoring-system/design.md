@@ -332,7 +332,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 ### 6. 即時資料：單一行程內的三個元件
 
 - **simulator**：每台伺服器每個指標保存「目前值」，每秒加上小幅隨機變動（隨機漫步）並限制在範圍內；另有約 1% 機率產生尖峰（直接拉到閾值以上），讓使用者幾分鐘內就看得到告警。用 `asyncio.sleep(1)` 迴圈。
-- **ConnectionManager**：保存已接受的 WebSocket 清單；`broadcast` 對每個連線 `send_json`，失敗的連線移除，不影響其他人。
+- **ConnectionManager**：保存已接受的 WebSocket 清單；`broadcast` 同時對所有連線 `send_json`（每個連線最多等 2 秒），失敗或逾時的連線移除，一個卡住的客戶端不會拖慢其他人。
 - **MetricBuffer + 批次寫入任務**：`add()` 把資料放進 list，若筆數 ≥ `BATCH_SIZE` 就 `set()` 一個 `asyncio.Event`；寫入任務用 `asyncio.wait_for(event.wait(), timeout=BATCH_INTERVAL_SECONDS)` 等待，醒來（不論 event 或 timeout）先 `event.clear()`；暫存區為空就跳過（不寫入、不更新上次寫入資訊），否則取出全部、`add_all` 後 commit，並記下「上次寫入時間／筆數／原因（interval 或 size）」給資料庫狀態 API。寫入失敗把資料放回最前面（超過 10,000 筆丟最舊的），並在下一次嘗試前固定等滿一個 `BATCH_INTERVAL_SECONDS`，這段期間不因筆數條件提早喚醒，避免資料庫故障時每秒重試；失敗事件照常交給 `audit_service`（資料庫連不上時它只會記到 stdout）。
 - 三者都在 FastAPI `lifespan` 中以 `asyncio.create_task` 啟動；關閉時先取消模擬器與寫入任務，再直接執行最後一次 flush，避免與寫入任務同時寫入。
 - 預設值說明：每秒 9 筆，10 秒約 90 筆，所以預設下通常是「定期」觸發；把伺服器數調多或 `BATCH_SIZE` 調小就會看到「條件」觸發。兩條路徑都有單元測試（以小數值設定驗證）。
@@ -341,7 +341,9 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 ### 7. WebSocket 認證用 query 參數帶 token
 
-`/ws/metrics?token=...`，**先 `accept()` 再驗證**，失敗以 `close(code=1008)` 關閉。依 ASGI 規格，在 `accept()` 前關閉連線時伺服器會以 HTTP 403 拒絕握手，客戶端讀不到 close code；Starlette 的 TestClient 卻會模擬成 1008，測試會通過但實際行為不同。先 accept 才能讓前端確實收到 1008 並執行登出流程。瀏覽器原生 WebSocket 無法自訂 header，query 參數是 FastAPI 官方文件示範的做法，也方便用瀏覽器工具測試。連線建立後 token 過期不會中斷連線（可接受，記於 Risks）。
+`/ws/metrics?token=...`，**先 `accept()` 再驗證**，失敗以 `close(code=1008)` 關閉。依 ASGI 規格，在 `accept()` 前關閉連線時伺服器會以 HTTP 403 拒絕握手，客戶端讀不到 close code；Starlette 的 TestClient 卻會模擬成 1008，測試會通過但實際行為不同。先 accept 才能讓前端確實收到 1008 並執行登出流程。瀏覽器原生 WebSocket 無法自訂 header，query 參數是 FastAPI 官方文件示範的做法，也方便用瀏覽器工具測試。驗證時若資料庫連不上，改以 1011 關閉，前端視為暫時錯誤並重連，不會登出。連線建立後 token 過期不會中斷連線（可接受，記於 Risks）。
+
+Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日誌，因此在 `uvicorn.error` logger 加上過濾器，把 `token=` 後面的值換成 `***`，token 不會出現在日誌中。
 
 ### 8. Streamlit 前端
 

@@ -8,10 +8,17 @@ from app.db.base import Base
 
 
 class MetricName(StrEnum):
-    # Units are known by the code (% / % / °C) and not stored
     cpu = "cpu"
     memory = "memory"
     temperature = "temperature"
+
+
+# Units are known by the code and not stored
+METRIC_UNITS = {
+    MetricName.cpu: "%",
+    MetricName.memory: "%",
+    MetricName.temperature: "°C",
+}
 
 
 class Metric(Base):
@@ -41,3 +48,7 @@ class Metric(Base):
     threshold: Mapped[float] = mapped_column(Double)
     is_anomaly: Mapped[bool]
     recorded_at: Mapped[datetime] = mapped_column(index=True)
+
+    @property
+    def unit(self) -> str:
+        return METRIC_UNITS[self.metric]
