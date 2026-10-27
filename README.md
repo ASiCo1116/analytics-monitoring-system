@@ -56,6 +56,8 @@ docker compose down -v         # 停止並清除資料庫資料
 | User | `user` | `User@1234` | 瀏覽、新增與匯入資料；只能修改、刪除自己建立的資料 |
 | Viewer | `viewer` | `Viewer@1234` | 只能瀏覽與下載 |
 
+資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料（大多屬於 `user`，少部分屬於 `admin`）。另有 `sample_data/records.csv`（50 筆）可用來測試匯入功能。
+
 ## API 文件連結
 
 後端啟動後可開啟：

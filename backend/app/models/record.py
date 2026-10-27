@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Double, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+from app.models.user import User
 
 
 class Record(TimestampMixin, Base):
@@ -25,3 +26,10 @@ class Record(TimestampMixin, Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"), index=True
     )
+    # lazy="raise": async code cannot lazy-load, so queries must load the
+    # owner explicitly (joinedload); forgetting it fails loudly
+    owner: Mapped[User] = relationship(lazy="raise")
+
+    @property
+    def owner_username(self) -> str:
+        return self.owner.username

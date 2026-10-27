@@ -11,7 +11,7 @@ from app.core.logging import log_requests, setup_logging
 from app.db.session import engine
 from app.deps import DbSession, client_ip
 from app.models import LogLevel
-from app.routers import auth, users
+from app.routers import auth, records, users
 from app.services import audit_service
 
 setup_logging(settings.log_level)
@@ -79,6 +79,7 @@ async def database_unavailable(
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(records.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["health"])

@@ -313,7 +313,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | GET | `/api/v1/records/{id}` | 登入 | 單筆 |
 | PATCH | `/api/v1/records/{id}` | 建立者/Admin | 部分更新 |
 | DELETE | `/api/v1/records/{id}` | 建立者/Admin | 刪除，204 |
-| POST | `/api/v1/records/import` | Admin/User | multipart 上傳 CSV/JSON，201 `{imported}` 或 422 `{errors:[{row, field, message}]}` |
+| POST | `/api/v1/records/import` | Admin/User | multipart 上傳 CSV/JSON，201 `{imported}` 或 422 `{detail: {errors:[{row, field, message}]}}`（外層沿用統一的 `detail` 格式；整個檔案的問題以 row 0 表示） |
 | GET | `/api/v1/analytics/summary` | 登入 | `source, start, end, category \| metric, server` |
 | GET | `/api/v1/analytics/groups` | 登入 | 同上，records 依分類、metrics 依伺服器 |
 | GET | `/api/v1/analytics/trend` | 登入 | 同上 + `interval=minute\|hour\|day` |

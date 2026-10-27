@@ -31,12 +31,12 @@
 
 ## 4. 資料記錄模組
 
-- [ ] 4.1 撰寫 record schemas（建立、部分更新、回應含 owner username、分頁回應、排序欄位白名單）；驗證：schema 單元測試拒絕空白標題與不允許的排序欄位
-- [ ] 4.2 撰寫 `services/record_service.py` 與 `routers/records.py` 的建立、列表（分頁/篩選/排序）、單筆、分類清單；驗證：測試涵蓋 `data-records` spec 的建立、分頁、篩選排序、404、分類清單情境
-- [ ] 4.3 實作 PATCH 與 DELETE 的擁有者檢查，並寫入系統日誌；驗證：測試涵蓋建立者可改、他人 403、Admin 可改、Viewer 刪除 403
-- [ ] 4.4 撰寫 `services/import_service.py` 與 `POST /records/import`（CSV/JSON、全有全無、415/413/422）；驗證：測試涵蓋成功、部分錯誤不寫入、格式不支援、超過上限
-- [ ] 4.5 建立 `sample_data/records.csv`（約 50 筆、含合法欄位）；驗證：以 user 帳號透過 Swagger 匯入回 201 `{imported: 50}`
-- [ ] 4.6 `seed.py` 加入範例資料（records 為空時產生約 200 筆最近 30 天、固定亂數種子）；驗證：首次啟動後有約 200 筆，重啟不增加
+- [x] 4.1 撰寫 record schemas（建立、部分更新、回應含 owner username、分頁回應、排序欄位白名單）；驗證：schema 單元測試拒絕空白標題與不允許的排序欄位
+- [x] 4.2 撰寫 `services/record_service.py` 與 `routers/records.py` 的建立、列表（分頁/篩選/排序）、單筆、分類清單；驗證：測試涵蓋 `data-records` spec 的建立、分頁、篩選排序、404、分類清單情境
+- [x] 4.3 實作 PATCH 與 DELETE 的擁有者檢查，並寫入系統日誌；驗證：測試涵蓋建立者可改、他人 403、Admin 可改、Viewer 刪除 403
+- [x] 4.4 撰寫 `services/import_service.py` 與 `POST /records/import`（CSV/JSON、全有全無、415/413/422）；驗證：測試涵蓋成功、部分錯誤不寫入、格式不支援、超過上限
+- [x] 4.5 建立 `sample_data/records.csv`（約 50 筆、含合法欄位）；驗證：以 user 帳號透過 Swagger 匯入回 201 `{imported: 50}`
+- [x] 4.6 `seed.py` 加入範例資料（records 為空時產生約 200 筆最近 30 天、固定亂數種子）；驗證：首次啟動後有約 200 筆，重啟不增加
 
 ## 5. 即時監控模組（後端）
 

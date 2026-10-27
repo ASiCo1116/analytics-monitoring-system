@@ -1,7 +1,10 @@
 from datetime import UTC, datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
-from pydantic import PlainSerializer
+from pydantic import AfterValidator, BaseModel, PlainSerializer
+
+from app.core.config import settings
 
 
 def _to_utc_string(value: datetime) -> str:
@@ -17,3 +20,25 @@ UtcDatetime = Annotated[
     datetime,
     PlainSerializer(_to_utc_string, return_type=str, when_used="json"),
 ]
+
+
+def _to_naive_utc(value: datetime) -> datetime:
+    # People write local times (CSV files, the frontend), so a time without
+    # a zone means APP_TIMEZONE
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo(settings.app_timezone))
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
+# Input type for every datetime in a request: converted to naive UTC, the
+# form stored in the database.
+LocalDatetime = Annotated[datetime, AfterValidator(_to_naive_utc)]
+
+
+class Page[T](BaseModel):
+    """Paginated list response."""
+
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
