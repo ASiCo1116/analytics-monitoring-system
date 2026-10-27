@@ -12,16 +12,16 @@
 
 ## 2. 資料庫層與遷移
 
-- [ ] 2.1 撰寫 `app/db/base.py`（DeclarativeBase、created_at/updated_at mixin，以 Python 端 `default`／`onupdate` 產生 UTC 時間，不用 `server_default`）與 `app/db/session.py`（async engine 含連線池參數、async_sessionmaker、`get_db`）；驗證：`/health` 改為同時檢查 DB 連線，DB 停掉時回 503
-- [ ] 2.2 依 design.md「DB Schema」撰寫四個模型（users、records、metrics、system_logs，含 ENUM、FK、索引；`users.id` 為 UUIDv7，以標準庫 `uuid.uuid7` 為預設值，`records.owner_id`／`system_logs.user_id` 為 UUID 外鍵）；驗證：`python -c "import app.models"` 無錯誤
-- [ ] 2.3 以 `alembic init -t async` 建立 Alembic，設定 `env.py` 讀 settings 與 `Base.metadata`，autogenerate 初始遷移並人工檢查 ENUM、索引，以及使用者 id 與外鍵欄位為 MariaDB `UUID` 型別（不是 `CHAR(32)`）；驗證：遷移檔中沒有 `sa.text(...)`，`alembic upgrade head` 後資料庫有 4 張表與 `alembic_version`，`SHOW CREATE TABLE users` 顯示 `id` 為 `uuid`，`alembic downgrade base` 可完整回退
+- [x] 2.1 撰寫 `app/db/base.py`（DeclarativeBase、created_at/updated_at mixin，以 Python 端 `default`／`onupdate` 產生 UTC 時間，不用 `server_default`）與 `app/db/session.py`（async engine 含連線池參數、async_sessionmaker、`get_db`）；驗證：`/health` 改為同時檢查 DB 連線，DB 停掉時回 503
+- [x] 2.2 依 design.md「DB Schema」撰寫四個模型（users、records、metrics、system_logs，含 ENUM、FK、索引；`users.id` 為 UUIDv7，以標準庫 `uuid.uuid7` 為預設值，`records.owner_id`／`system_logs.user_id` 為 UUID 外鍵）；驗證：`python -c "import app.models"` 無錯誤
+- [x] 2.3 以 `alembic init -t async` 建立 Alembic，設定 `env.py` 讀 settings 與 `Base.metadata`，autogenerate 初始遷移並人工檢查 ENUM、索引，以及使用者 id 與外鍵欄位為 MariaDB `UUID` 型別（不是 `CHAR(32)`）；驗證：遷移檔中沒有 `sa.text(...)`，`alembic upgrade head` 後資料庫有 4 張表與 `alembic_version`，`SHOW CREATE TABLE users` 顯示 `id` 為 `uuid`，`alembic downgrade base` 可完整回退
 - [ ] 2.4 `entrypoint.sh` 加入 `alembic upgrade head`（`set -e`）；驗證：刪除 volume 重新 `up` 後表自動建立
-- [ ] 2.5 在 compose 加入 `profiles: ["test"]` 的 `db-test` 與 `backend-test`（後端 Dockerfile `test` target，執行 `pixi run -e backend test`），撰寫 `tests/conftest.py`（建立/清除資料表、測試 engine 使用 `NullPool`、pytest-asyncio loop scope 設為 session、AsyncClient 與 WebSocket 用的 TestClient、模擬器停用、建立各角色使用者與 token 的 fixture）；驗證：`docker compose --profile test run --rm backend-test` 執行一個 `/health` 測試通過
-- [ ] 2.6 README 新增「執行測試」一節；驗證：照文件指令可跑測試
+- [x] 2.5 在 compose 加入 `profiles: ["test"]` 的 `db-test` 與 `backend-test`（後端 Dockerfile `test` target，執行 `pixi run -e backend test`），撰寫 `tests/conftest.py`（建立/清除資料表、測試 engine 使用 `NullPool`、pytest-asyncio loop scope 設為 session、AsyncClient 與 WebSocket 用的 TestClient、模擬器停用、建立各角色使用者的 fixture，測試資料庫名稱必須以 `_test` 結尾）；驗證：`docker compose --profile test run --rm backend-test` 執行一個 `/health` 測試通過
+- [x] 2.6 README 新增「執行測試」一節；驗證：照文件指令可跑測試
 
 ## 3. 認證、角色與系統日誌
 
-- [ ] 3.1 撰寫 `app/core/security.py`（bcrypt 雜湊/驗證、超過 72 bytes 的密碼驗證直接回 False、JWT 簽發/解析）；驗證：單元測試涵蓋雜湊驗證、超長密碼不拋例外、token 過期
+- [ ] 3.1 撰寫 `app/core/security.py`（bcrypt 雜湊/驗證、超過 72 bytes 的密碼驗證直接回 False、JWT 簽發/解析），並在 `tests/conftest.py` 加入各角色 token 的 fixture；驗證：單元測試涵蓋雜湊驗證、超長密碼不拋例外、token 過期
 - [ ] 3.2 撰寫 `services/audit_service.py`（獨立 session、失敗不拋出）；驗證：單元測試確認寫入一筆日誌，以及 DB 錯誤時不拋例外
 - [ ] 3.3 撰寫 user/auth schemas 與 `routers/auth.py`（register、login 使用 OAuth2PasswordRequestForm）、`routers/users.py`（me），註冊與登入成功/失敗寫入系統日誌；驗證：測試涵蓋 `user-auth` spec 的註冊、登入、帳號停用情境，以及註冊回傳的 id 為版本 7 的 UUID、密碼超過 72 bytes 註冊回 422 且登入回 401、回應中的時間字串以 `Z` 結尾（建立共用的 `UtcDatetime` 輸出型別）
 - [ ] 3.4 撰寫 `deps.py`（`get_current_user` 每次讀 DB、`require_roles`）；驗證：測試涵蓋未帶 token、過期 token、停用後舊 token 回 403

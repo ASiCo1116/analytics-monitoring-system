@@ -59,6 +59,43 @@ services:
     networks:
       - app-net
 
+  # ---------- tests: docker compose --profile test run --rm backend-test ----------
+  db-test:
+    image: mariadb:11.7
+    profiles: ["test"]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: analytics_test
+      MARIADB_USER: ${MARIADB_USER}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+    # No volume: test data is thrown away; tmpfs keeps it in memory and fast
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - app-net
+
+  backend-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: test
+    env_file: .env
+    environment:
+      # Override .env: separate database, no background simulator
+      DATABASE_URL: mysql+asyncmy://${MARIADB_USER}:${MARIADB_PASSWORD}@db-test:3306/analytics_test
+      SIMULATOR_ENABLED: "false"
+    depends_on:
+      db-test:
+        condition: service_healthy
+    networks:
+      - app-net
+
 volumes:
   db_data:
 

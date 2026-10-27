@@ -4,4 +4,7 @@ set -e
 
 source /shell-hook.sh
 
+# Bring the schema up to date before serving; set -e stops the container if this fails
+alembic upgrade head
+
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log

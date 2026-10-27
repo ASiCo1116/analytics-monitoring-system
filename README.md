@@ -45,6 +45,18 @@ docker compose down            # 停止，保留資料
 docker compose down -v         # 停止並清除資料庫資料
 ```
 
+## 執行測試
+
+後端測試在 Docker 中執行，使用獨立的 `db-test` 資料庫（資料只存在記憶體），不會影響正式資料：
+
+```bash
+cp .env.example .env    # 若尚未建立
+docker compose --profile test run --rm --build backend-test
+```
+
+- `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose stop db-test` 只關閉測試資料庫，不影響主系統。
+- 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
+
 ## 本地運行
 
 需求：[pixi](https://pixi.sh/latest/#installation) 與 Docker（只用來跑資料庫）。以下指令都在專案根目錄執行，第一次執行時 pixi 會自動安裝對應的環境。
@@ -62,9 +74,10 @@ docker compose down -v         # 停止並清除資料庫資料
    docker compose up -d db
    ```
 
-3. 啟動後端（http://localhost:8000/docs）：
+3. 建立資料表並啟動後端（http://localhost:8000/docs）：
 
    ```bash
+   pixi run -e backend migrate
    pixi run -e backend dev
    ```
 
