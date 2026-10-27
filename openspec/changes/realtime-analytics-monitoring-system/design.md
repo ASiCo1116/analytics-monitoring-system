@@ -255,9 +255,13 @@ erDiagram
 │   ├── app.py                 # st.navigation：依登入狀態與角色決定頁面；側邊欄使用者與登出
 │   ├── views/                 # login.py, monitor.py, records.py, analytics.py, admin.py
 │   ├── lib/
+│   │   ├── config.py          # 讀環境變數：BACKEND_URL、BACKEND_WS_URL、APP_TIMEZONE
+│   │   ├── session.py         # 登入狀態（token、使用者、listener）的建立與清除
 │   │   ├── api.py             # requests 包裝：自動帶 token、401 時清除登入狀態
 │   │   ├── ws_listener.py     # 背景執行緒接 WebSocket，寫入 deque
-│   │   └── charts.py          # Plotly 圖表函式
+│   │   ├── charts.py          # Plotly 圖表函式
+│   │   ├── fmt.py             # API 的 UTC 時間與 APP_TIMEZONE 互轉
+│   │   └── widgets.py         # 共用的分頁元件
 │   └── Dockerfile
 ├── sample_data/records.csv     # 約 50 筆，可直接用來測試匯入
 ├── pixi.toml / pixi.lock      # 前後端共用：features、environments（backend / backend-prod / frontend）、tasks
@@ -350,11 +354,12 @@ Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日
 
 - **導覽**：`st.navigation` + `st.Page`。未登入只註冊登入頁；登入後依角色組出頁面清單（Admin 多一個系統管理）。
 - **Session**：`st.session_state` 存 `token`、`user`（me API 結果）、`ws_listener`。`lib/api.py` 統一加 Authorization header；遇到 401，或 `detail == "Inactive user"` 的 403，就清除 session 並 `st.rerun()` 回登入頁（後端以固定的 detail 字串區分「帳號停用」與「權限不足」）。ws_listener 收到 close code 1008 時停止重連並設一個旗標，即時監控頁看到旗標就執行同樣的登出流程。
-- **即時接收**：`websocket-client` 的 `WebSocketApp.run_forever(reconnect=3)` 跑在 daemon 執行緒中，收到訊息就 append 到 `collections.deque(maxlen=60)`（最近 60 秒）與告警 `deque(maxlen=20)`。deque 的 append 是執行緒安全的，執行緒不碰 `st.session_state`（Streamlit 不允許其他執行緒存取 session）。listener 物件存在 session_state，所以切換頁面資料不會消失；登出時呼叫 `close()` 停止。
+- **即時接收**：`websocket-client` 的 `WebSocketApp.run_forever()` 跑在 daemon 執行緒中，外面包一層自己的重連迴圈（連線結束後等 3 秒再連；不用 `run_forever(reconnect=3)`，因為內建重連收到關閉訊框時直接重連，不會回報 close code，無法辨識 1008），收到訊息就 append 到 `collections.deque(maxlen=60)`（最近 60 秒）與告警 `deque(maxlen=20)`。deque 的 append 是執行緒安全的，執行緒不碰 `st.session_state`（Streamlit 不允許其他執行緒存取 session）。listener 物件存在 session_state，所以切換頁面資料不會消失；登出時呼叫 `close()` 停止。
 - **自動刷新**：即時監控頁的圖表區包在 `@st.fragment(run_every=1)` 中，只重繪這一區，不會整頁閃爍。
 - **圖表**：Plotly（`st.plotly_chart`），因為內建 `st.line_chart` 無法把異常點標紅、畫閾值線。
 - **HTTP**：前端用同步 `requests`（Streamlit 腳本本身是同步的），後端位址取自 `BACKEND_URL=http://backend:8000`；前端是在容器內呼叫後端，不經過瀏覽器，所以**不需要 CORS**。
-- **Excel 下載**：前端呼叫匯出 API 取得 bytes，交給 `st.download_button`。
+- **Excel 下載**：分兩步。按「準備 Excel 檔」時才呼叫匯出 API 取得 bytes，再顯示 `st.download_button`；檔案與當時的篩選條件綁在一起，條件改變就要重新準備。避免每次頁面重跑都產生一次檔案，也讓 401 能走統一的登出流程（`download_button` 的延遲產生函式無法 `st.rerun`）。
+- **時間輸入**：日期篩選的「結束日期」在畫面上包含當天，送出時轉成隔天 00:00（API 的 end 不含）；時間不帶時區送出，由後端視為 `APP_TIMEZONE`。
 
 ### 9. CSV/JSON 匯入
 
@@ -444,7 +449,7 @@ pytest + pytest-asyncio + httpx `AsyncClient(transport=ASGITransport(app))`，�
 ## Risks / Trade-offs
 
 - [單一 worker：模擬器與廣播在行程內，無法水平擴展] → 刻意的取捨，README 註明；改進方向是獨立模擬器 + Redis Pub/Sub。
-- [Streamlit 每個使用者 session 一條 WebSocket 執行緒，session 意外結束（關分頁）時執行緒可能殘留] → 使用 daemon 執行緒；目前規模可接受，README 註明。
+- [Streamlit 每個使用者 session 一條 WebSocket 執行緒，session 意外結束（關分頁）時執行緒可能殘留] → 使用 daemon 執行緒；每次頁面執行都會更新 listener 的最後使用時間，超過 10 分鐘沒有使用就自行關閉；README 註明。
 - [Streamlit 重新整理瀏覽器就會登出] → spec 未要求，記為已知限制；比把 token 存在 cookie／query string 安全也簡單。
 - [WebSocket 連線後 token 過期仍持續推送] → 推送內容為非敏感的模擬資料，可接受。
 - [metrics 每天約 77 萬筆，長時間運作後查詢變慢] → 已建複合索引；分析預設最近 24 小時；Excel 明細上限 10,000 筆；資料清理排程列為非目標。

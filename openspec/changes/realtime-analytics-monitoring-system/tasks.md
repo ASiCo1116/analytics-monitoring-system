@@ -61,13 +61,13 @@
 
 ## 8. Streamlit 前端
 
-- [ ] 8.1 撰寫 `lib/api.py`（帶 token、401 清除 session）與 `app.py`（st.navigation 依登入狀態與角色組頁面、側邊欄使用者資訊與登出）、`views/login.py`（登入/註冊分頁）；驗證：手動以三個帳號登入，選單符合 `web-dashboard` spec；登出回登入頁
-- [ ] 8.2 撰寫 `lib/ws_listener.py`（daemon 執行緒、deque、自動重連、close）；驗證：登入後在 Python console 確認 deque 每秒增加
-- [ ] 8.3 撰寫 `lib/charts.py` 與 `views/monitor.py`（`@st.fragment(run_every=1)`、數值卡片、折線圖含閾值線與紅色異常點、柱狀圖、告警清單、連線狀態、指標切換）；驗證：手動觀察 1 分鐘內圖表每秒更新；把 `THRESHOLD_CPU` 設 50 重啟後看到紅色標示；切換頁面再回來資料仍在
-- [ ] 8.4 撰寫 `views/records.py`（篩選、分頁表格、新增表單、編輯/刪除、匯入並顯示逐列錯誤，依角色隱藏）；驗證：以 viewer 看不到操作元件；以 user 匯入 `sample_data/records.csv` 成功、匯入錯誤檔看到列號
-- [ ] 8.5 撰寫 `views/analytics.py`（來源切換、篩選、統計卡片、分組柱狀圖、趨勢折線圖、Excel 下載）；驗證：下載的檔案可用 Excel/LibreOffice 開啟且數字與畫面一致
-- [ ] 8.6 撰寫 `views/admin.py`（使用者管理 data_editor + 儲存、日誌、DB 狀態、即時資料歷史四個分頁）；驗證：手動把 user 改成 viewer 後以該帳號重新登入看到 Viewer 介面
-- [ ] 8.7 Token 過期處理：將 `JWT_EXPIRE_MINUTES=1` 測試；驗證：過期後操作回到登入頁並顯示過期提示
+- [x] 8.1 撰寫 `lib/api.py`（帶 token、401 清除 session）與 `app.py`（st.navigation 依登入狀態與角色組頁面、側邊欄使用者資訊與登出）、`views/login.py`（登入/註冊分頁）；驗證：手動以三個帳號登入，選單符合 `web-dashboard` spec；登出回登入頁
+- [x] 8.2 撰寫 `lib/ws_listener.py`（daemon 執行緒、deque、自動重連、close）；驗證：以獨立腳本對執行中的後端建立 listener，確認 deque 每秒增加、錯誤 token 收到 1008 後停止且不重連、後端重啟後自動重連（listener 執行緒在 Streamlit 伺服器行程內，無法從外部 console 觀察）
+- [x] 8.3 撰寫 `lib/charts.py` 與 `views/monitor.py`（`@st.fragment(run_every=1)`、數值卡片、折線圖含閾值線與紅色異常點、柱狀圖、告警清單、連線狀態、指標切換）；驗證：手動觀察 1 分鐘內圖表每秒更新；把 `THRESHOLD_CPU` 設 50 重啟後看到紅色標示；切換頁面再回來資料仍在
+- [x] 8.4 撰寫 `views/records.py`（篩選、分頁表格、新增表單、編輯/刪除、匯入並顯示逐列錯誤，依角色隱藏）；驗證：以 viewer 看不到操作元件；以 user 匯入 `sample_data/records.csv` 成功、匯入錯誤檔看到列號
+- [x] 8.5 撰寫 `views/analytics.py`（來源切換、篩選、統計卡片、分組柱狀圖、趨勢折線圖、Excel 下載）；驗證：下載的檔案可用 Excel/LibreOffice 開啟且數字與畫面一致
+- [x] 8.6 撰寫 `views/admin.py`（使用者管理 data_editor + 儲存、日誌、DB 狀態、即時資料歷史四個分頁）；驗證：手動把 user 改成 viewer 後以該帳號重新登入看到 Viewer 介面
+- [x] 8.7 Token 過期處理：將 `JWT_EXPIRE_MINUTES=1` 測試；驗證：過期後操作回到登入頁並顯示過期提示
 
 ## 9. 文件與整合驗證
 
