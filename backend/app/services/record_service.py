@@ -1,7 +1,7 @@
 """Business logic and queries for data records."""
 
 from fastapi import HTTPException, status
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -86,9 +86,13 @@ async def get_record(db: AsyncSession, record_id: int) -> Record:
     return record
 
 
-def ensure_can_modify(record: Record, user: User) -> None:
+def can_modify(record: Record, user: User) -> bool:
     """Only the creator or an Admin may change or delete a record."""
-    if user.role != Role.admin and record.owner_id != user.id:
+    return user.role == Role.admin or record.owner_id == user.id
+
+
+def ensure_can_modify(record: Record, user: User) -> None:
+    if not can_modify(record, user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=NOT_ENOUGH_PERMISSIONS,
@@ -108,6 +112,30 @@ async def update_record(
 async def delete_record(db: AsyncSession, record: Record) -> None:
     await db.delete(record)
     await db.commit()
+
+
+async def delete_records(db: AsyncSession, ids: list[int], user: User) -> int:
+    """Delete every record in `ids`, or none of them.
+
+    404 when an id does not exist, then 403 when the user may not delete
+    one of them; both list the offending ids. Returns the number deleted.
+    """
+    records = (await db.scalars(select(Record).where(Record.id.in_(ids)))).all()
+    missing = sorted(set(ids) - {record.id for record in records})
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"message": "Records not found", "ids": missing},
+        )
+    forbidden = sorted(r.id for r in records if not can_modify(r, user))
+    if forbidden:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"message": NOT_ENOUGH_PERMISSIONS, "ids": forbidden},
+        )
+    result = await db.execute(delete(Record).where(Record.id.in_(ids)))
+    await db.commit()
+    return result.rowcount
 
 
 async def list_categories(db: AsyncSession) -> list[str]:

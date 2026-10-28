@@ -325,3 +325,131 @@ async def test_update_missing_record(client, auth_headers):
     )
 
     assert response.status_code == 404
+
+
+# ---------- batch delete ----------
+
+
+async def remaining_ids(db, records: list[Record]) -> set[int]:
+    ids = [record.id for record in records]
+    return set(await db.scalars(select(Record.id).where(Record.id.in_(ids))))
+
+
+async def test_owner_can_batch_delete(client, db, auth_headers, add_records):
+    records = await add_records({}, {}, {})
+
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": [r.id for r in records]},
+        headers=auth_headers[Role.user],
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 3}
+    assert await remaining_ids(db, records) == set()
+    for record in records:
+        again = await client.get(
+            f"{RECORDS}/{record.id}", headers=auth_headers[Role.user]
+        )
+        assert again.status_code == 404
+
+
+async def test_batch_delete_with_others_record_deletes_nothing(
+    client, db, auth_headers, add_records
+):
+    own = await add_records({}, {})
+    (others,) = await add_records({}, owner=Role.admin)
+
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": [own[0].id, others.id, own[1].id]},
+        headers=auth_headers[Role.user],
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["ids"] == [others.id]
+    assert await remaining_ids(db, [*own, others]) == {
+        own[0].id,
+        own[1].id,
+        others.id,
+    }
+
+
+async def test_batch_delete_with_missing_id_deletes_nothing(
+    client, db, auth_headers, add_records
+):
+    records = await add_records({}, {})
+
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": [records[0].id, 999999, records[1].id]},
+        headers=auth_headers[Role.user],
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["ids"] == [999999]
+    assert await remaining_ids(db, records) == {r.id for r in records}
+
+
+async def test_admin_can_batch_delete_anyones_records(
+    client, db, auth_headers, add_records, other_user
+):
+    users_record = await add_records({})
+    (others_record,) = await add_records({})
+    others_record.owner_id = other_user.id
+    await db.commit()
+    records = [*users_record, others_record]
+
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": [r.id for r in records]},
+        headers=auth_headers[Role.admin],
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 2}
+    assert await remaining_ids(db, records) == set()
+
+
+async def test_viewer_cannot_batch_delete(
+    client, db, auth_headers, add_records
+):
+    records = await add_records({})
+
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": [records[0].id]},
+        headers=auth_headers[Role.viewer],
+    )
+
+    assert response.status_code == 403
+    assert await remaining_ids(db, records) == {records[0].id}
+
+
+@pytest.mark.parametrize("ids", [[], list(range(1, 102)), [1, 1]])
+async def test_batch_delete_rejects_bad_id_lists(client, auth_headers, ids):
+    response = await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": ids},
+        headers=auth_headers[Role.admin],
+    )
+
+    assert response.status_code == 422
+
+
+async def test_batch_delete_is_logged(client, db, auth_headers, add_records):
+    records = await add_records({}, {}, {})
+    ids = [r.id for r in records]
+
+    await client.post(
+        f"{RECORDS}/batch-delete",
+        json={"ids": ids},
+        headers=auth_headers[Role.admin],
+    )
+
+    log = await db.scalar(
+        select(SystemLog).where(SystemLog.action == "record_batch_delete")
+    )
+    assert log.message == (
+        f"admin deleted 3 records: {', '.join(map(str, ids))}"
+    )

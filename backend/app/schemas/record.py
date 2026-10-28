@@ -5,7 +5,9 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PositiveInt,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 
@@ -21,6 +23,9 @@ Category = Annotated[
 Description = Annotated[str, StringConstraints(max_length=1000)]
 # NaN / infinity cannot be stored in a MariaDB DOUBLE
 Value = Annotated[float, Field(allow_inf_nan=False)]
+
+# Same as the largest page, so one page of the table can be deleted at once
+MAX_BATCH_DELETE = 100
 
 SORT_FIELDS = ("recorded_at", "value", "title", "category", "created_at")
 # Optional "-" prefix for descending order, e.g. "-recorded_at"
@@ -87,3 +92,20 @@ class RecordListParams(PageParams):
 
 class ImportResult(BaseModel):
     imported: int
+
+
+class RecordBatchDelete(BaseModel):
+    """Body of POST /records/batch-delete."""
+
+    ids: list[PositiveInt] = Field(min_length=1, max_length=MAX_BATCH_DELETE)
+
+    @field_validator("ids")
+    @classmethod
+    def no_duplicates(cls, ids: list[int]) -> list[int]:
+        if len(set(ids)) != len(ids):
+            raise ValueError("ids must not repeat")
+        return ids
+
+
+class BatchDeleteResult(BaseModel):
+    deleted: int

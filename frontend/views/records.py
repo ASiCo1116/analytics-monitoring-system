@@ -62,30 +62,74 @@ if not response.ok:
 result = response.json()
 records = result["items"]
 
+
+
+def can_modify(record: dict) -> bool:
+    """Only the creator or an Admin may change or delete a record."""
+    return me["role"] == "admin" or record["owner_id"] == me["id"]
+
+
 # ---------- table ----------
-st.dataframe(
-    [
-        {
-            "ID": r["id"],
-            "標題": r["title"],
-            "數值": r["value"],
-            "分類": r["category"],
-            "記錄時間": to_local(r["recorded_at"]),
-            "建立者": r["owner_username"],
-            "描述": r["description"],
-        }
-        for r in records
-    ],
-    hide_index=True,
-    column_config={
-        "記錄時間": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm")
-    },
-)
+rows = [
+    {
+        "ID": r["id"],
+        "標題": r["title"],
+        "數值": r["value"],
+        "分類": r["category"],
+        "記錄時間": to_local(r["recorded_at"]),
+        "建立者": r["owner_username"],
+        "描述": r["description"],
+    }
+    for r in records
+]
+column_config = {
+    "記錄時間": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm")
+}
+if can_write:
+    # Rows can be ticked for batch delete. The key follows the rows shown,
+    # so another page, filter or a delete clears the selection instead of
+    # pointing old row numbers at new records.
+    table = st.dataframe(
+        rows,
+        hide_index=True,
+        column_config=column_config,
+        on_select="rerun",
+        selection_mode="multi-row",
+        key=f"records_table_{hash(tuple(r['id'] for r in records))}",
+    )
+    selected = [records[i] for i in table.selection.rows]
+else:
+    st.dataframe(rows, hide_index=True, column_config=column_config)
 pager("records_page", result["total"], page_size)
 
 if not can_write:
     # Viewers only browse; the backend refuses writes anyway
     st.stop()
+
+# ---------- batch delete ----------
+if selected:
+    deletable = [r for r in selected if can_modify(r)]
+    if skipped := len(selected) - len(deletable):
+        st.warning(f"選取的記錄中有 {skipped} 筆不是你建立的，刪除時會略過。")
+    if deletable:
+        count = len(deletable)
+        confirm = st.checkbox(f"確認刪除選取的 {count} 筆記錄")
+        if st.button(
+            f"刪除選取的 {count} 筆",
+            disabled=not confirm,
+            icon=":material/delete:",
+        ):
+            deleted = api.request(
+                "POST",
+                "/records/batch-delete",
+                json={"ids": [r["id"] for r in deletable]},
+            )
+            if deleted.ok:
+                st.session_state.records_flash = (
+                    f"已刪除 {deleted.json()['deleted']} 筆記錄"
+                )
+                st.rerun()
+            st.error(api.error_text(deleted))
 
 
 def record_fields(prefix: str, record: dict | None = None) -> dict:
@@ -142,10 +186,7 @@ with create_tab, st.form("create_record", clear_on_submit=True):
         st.error(api.error_text(created))
 
 with edit_tab:
-    # Only the creator or an Admin may change a record
-    editable = [
-        r for r in records if me["role"] == "admin" or r["owner_id"] == me["id"]
-    ]
+    editable = [r for r in records if can_modify(r)]
     if not editable:
         st.caption("這一頁沒有可編輯的記錄（只能編輯自己建立的記錄）。")
     else:

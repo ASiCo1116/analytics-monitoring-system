@@ -3,7 +3,12 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.record import RecordCreate, RecordListParams, RecordUpdate
+from app.schemas.record import (
+    RecordBatchDelete,
+    RecordCreate,
+    RecordListParams,
+    RecordUpdate,
+)
 
 
 def valid(**overrides) -> dict:
@@ -61,3 +66,16 @@ def test_disallowed_sort_field_is_rejected(sort):
 def test_page_size_limit():
     with pytest.raises(ValidationError):
         RecordListParams(page_size=101)
+
+
+def test_batch_delete_accepts_up_to_100_ids():
+    assert RecordBatchDelete(ids=[1, 2, 3]).ids == [1, 2, 3]
+    assert len(RecordBatchDelete(ids=list(range(1, 101))).ids) == 100
+
+
+@pytest.mark.parametrize(
+    "ids", [[], list(range(1, 102)), [1, 2, 1], [0], [-3], ["abc"]]
+)
+def test_batch_delete_rejects_bad_ids(ids):
+    with pytest.raises(ValidationError):
+        RecordBatchDelete(ids=ids)
