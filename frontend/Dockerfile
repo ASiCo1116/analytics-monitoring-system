@@ -1,7 +1,7 @@
 # Build context: repository root (docker build -f frontend/Dockerfile .)
 
 # ---------- build: resolve the locked pixi environment ----------
-FROM ghcr.io/prefix-dev/pixi:0.63.2 AS build
+FROM ghcr.io/prefix-dev/pixi:0.83.0 AS build
 WORKDIR /app
 # Copy only the manifest and lock first so this layer is cached until dependencies change
 COPY pixi.toml pixi.lock ./

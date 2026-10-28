@@ -19,10 +19,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: prefix-dev/setup-pixi@v0.11.0
+      - uses: prefix-dev/setup-pixi@v0.11.2
         with:
           # Same pixi version as the Dockerfiles
-          pixi-version: v0.63.2
+          pixi-version: v0.83.0
           environments: lint
       - run: pixi run lint
 
