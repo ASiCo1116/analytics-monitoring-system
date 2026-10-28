@@ -23,7 +23,11 @@
   </tr>
 </table>
 
-## Docker 部署
+## 安裝方式
+
+### Docker 部署
+
+需求：安裝 Docker。
 
 ```bash
 git clone https://github.com/ASiCo1116/analytics-monitoring-system.git
@@ -32,7 +36,7 @@ cp .env.example .env          # 預設值可直接使用
 docker compose up -d --build
 ```
 
-啟動後開啟 http://localhost:8501 使用系統；後端 API 文件見 [API 文件連結](#api-文件連結)。
+啟動後開啟 http://localhost:8501 使用系統。
 
 停止服務：
 
@@ -41,9 +45,9 @@ docker compose down            # 停止，保留資料
 docker compose down -v         # 停止並清除資料庫資料（下次啟動會重新建立範例資料）
 ```
 
-## 本地執行
+### 本地執行
 
-需求：[pixi](https://pixi.sh/latest/#installation) 與 Docker（只用來跑資料庫）。clone 之後的指令都在專案根目錄執行，第一次執行時 pixi 會自動安裝對應的環境。
+需求：安裝 [pixi](https://pixi.sh/latest/#installation) 與 Docker。
 
 1. 取得程式碼並準備環境變數。本地與 Docker 共用同一份 `.env`；後端的 pixi task 會把資料庫主機 `DB_HOST` 設為 `localhost`，不需要另外修改：
 
@@ -59,7 +63,7 @@ docker compose down -v         # 停止並清除資料庫資料（下次啟動�
    docker compose up -d db
    ```
 
-3. 建立資料表、測試帳號，並啟動後端（http://localhost:8000/docs）：
+3. 建立資料表、測試帳號，並啟動後端：
 
    ```bash
    pixi run -e backend migrate
@@ -67,7 +71,7 @@ docker compose down -v         # 停止並清除資料庫資料（下次啟動�
    pixi run -e backend dev
    ```
 
-4. 另開一個終端機啟動前端（http://localhost:8501）。前端的 `dev` task 已把後端位址設為 `localhost:8000`：
+4. 另開一個終端機啟動前端：
 
    ```bash
    pixi run -e frontend dev
@@ -100,15 +104,13 @@ docker compose down -v         # 停止並清除資料庫資料（下次啟動�
 
 ## API 文件連結
 
-後端啟動後可開啟：
-
 | 文件 | 位址 |
 |---|---|
 | Swagger UI（可直接呼叫 API） | http://localhost:8000/docs |
 | ReDoc | http://localhost:8000/redoc |
 | OpenAPI JSON | http://localhost:8000/openapi.json |
 
-在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。所有 API 前綴為 `/api/v1`，例如登入是 `POST /api/v1/auth/login`。
+在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。
 
 
 ## 系統架構圖
@@ -264,7 +266,7 @@ erDiagram
 
 | 層 | 技術 |
 |---|---|
-| 前端 | Streamlit、Plotly、requests、websocket-client |
+| 前端 | Python 3.14、Streamlit、Plotly、requests、websocket-client |
 | 後端 | Python 3.14、FastAPI、Pydantic v2、SQLAlchemy 2.1 async ORM（asyncmy driver）、Alembic、PyJWT + bcrypt、Uvicorn |
 | 資料庫 | MariaDB 11.7 |
 | 套件管理 | [pixi](https://pixi.sh) |
