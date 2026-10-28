@@ -115,7 +115,7 @@ docker compose down -v         # 停止並清除資料庫資料（下次啟動�
 
 ## 系統架構圖
 
-後端是單一 uvicorn 執行緒：REST API、WebSocket 推送、模擬器與批次寫入都在同一個執行緒內；前端在容器內呼叫後端，不經過瀏覽器。
+後端是單一 uvicorn 行程（一個 worker）：REST API、WebSocket 推送、模擬器與批次寫入共用同一個事件迴圈，bcrypt、匯入解析與 Excel 匯出等耗 CPU 的工作則交給執行緒池；前端在容器內呼叫後端，不經過瀏覽器。
 
 模擬器是後端內建的背景任務，用來代替真實伺服器產生即時監控資料：每秒為每台虛擬伺服器（預設 `server-1`～`server-3`）各產生一筆 CPU、記憶體、溫度數值。數值在正常水準附近隨機波動，約 1% 的機率會突然超過閾值，讓告警在幾分鐘內就會出現。可用 `SIMULATOR_ENABLED=false` 關閉。
 
@@ -182,6 +182,8 @@ sequenceDiagram
         B-->>S: 使用者資料 → 恢復登入
     else 401／帳號停用
         S-->>U: 導向 /session/end?expired=1，清除 cookie 並顯示過期提示
+    else 後端無法連線或 5xx
+        S-->>U: 顯示錯誤，保留 cookie，之後重新整理可再試
     end
 ```
 
@@ -198,7 +200,7 @@ sequenceDiagram
 
     G->>G: 產生 9 筆指標並判斷 is_anomaly
     G->>M: broadcast(批次)
-    M-->>F: {"type":"metrics","data":[...]}
+    M-->>F: {"type":"metrics","timestamp":...,"data":[...]}
     G->>B: add(批次)
     alt 暫存 ≥ 100 筆（條件觸發）
         B->>W: 喚醒
