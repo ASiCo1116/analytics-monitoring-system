@@ -25,9 +25,10 @@ email-validator = ">=2.3.0,<3"
 asyncmy = ">=0.2.17, <0.3"
 
 [feature.backend.tasks]
-dev = { cmd = "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log", cwd = "backend" }
-migrate = { cmd = "alembic upgrade head", cwd = "backend" }
-seed = { cmd = "python -m app.seed", cwd = "backend" }
+# Locally the database is on localhost instead of the `db` Compose service
+dev = { cmd = "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log", cwd = "backend", env = { DB_HOST = "localhost" } }
+migrate = { cmd = "alembic upgrade head", cwd = "backend", env = { DB_HOST = "localhost" } }
+seed = { cmd = "python -m app.seed", cwd = "backend", env = { DB_HOST = "localhost" } }
 
 # ---------- test ----------
 [feature.test.dependencies]

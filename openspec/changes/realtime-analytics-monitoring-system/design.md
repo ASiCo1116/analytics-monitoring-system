@@ -393,7 +393,7 @@ Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日
 |---|---|---|
 | `MARIADB_ROOT_PASSWORD` | `rootpass` | MariaDB root 密碼 |
 | `MARIADB_DATABASE` / `MARIADB_USER` / `MARIADB_PASSWORD` | `analytics` / `app` / `apppass` | 應用程式資料庫與帳號 |
-| `DATABASE_URL` | `mysql+asyncmy://app:apppass@db:3306/analytics` | 後端連線字串 |
+| `DB_HOST` / `DB_PORT` | `db` / `3306` | 後端連線的資料庫主機與埠；帳號、密碼、資料庫名稱沿用上面的 `MARIADB_*`，連線字串由 `Settings.database_url` 以 SQLAlchemy `URL.create` 組成（密碼中的特殊字元會自動跳脫） |
 | `JWT_SECRET_KEY` | `change-me-in-production-at-least-32-bytes` | JWT 簽章密鑰（HS256 建議至少 32 bytes） |
 | `JWT_EXPIRE_MINUTES` | `60` | Token 有效期 |
 | `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` / `SEED_VIEWER_PASSWORD` | `Admin@1234` / `User@1234` / `Viewer@1234` | 測試帳號密碼 |
@@ -441,8 +441,8 @@ pytest + pytest-asyncio + httpx `AsyncClient(transport=ASGITransport(app))`，�
 - 常用指令定義為各 feature 的 pixi tasks，並設定 `cwd`（後端 task 在 `backend/` 執行，前端在 `frontend/`），一律以 `-e` 指定環境執行，例如 `pixi run -e backend dev`、`pixi run -e frontend dev`。README 與測試容器都使用這些 task。runtime 映像不含 pixi，所以 `entrypoint.sh` 直接執行與 task 相同的指令（`alembic upgrade head`、`python -m app.seed`、`uvicorn`）：
   - 後端（`backend` feature）：`dev`（`uvicorn app.main:app --reload`）、`migrate`（`alembic upgrade head`）、`seed`（`python -m app.seed`）；`test` feature：`test`（`pytest`）
   - 前端（`frontend` feature）：`dev`（`streamlit run app.py`，task 的 `env` 設定 `BACKEND_URL=http://localhost:8000`、`BACKEND_WS_URL=ws://localhost:8000`）
-- 本地運行（皆在專案根目錄執行）：`docker compose up -d db` 只啟動資料庫 → `pixi run -e backend migrate`、`pixi run -e backend seed`、`pixi run -e backend dev` → 另開終端機執行 `pixi run -e frontend dev`。第一次執行時 pixi 會自動安裝對應環境。本地執行時 `DATABASE_URL` 要指向 `localhost:3306`，`BACKEND_URL`／`BACKEND_WS_URL` 要指向 `localhost:8000`。
-- 本地的環境變數：後端以 pydantic-settings 讀取 `env_file=("../.env", ".env")`，後面的檔案優先。根目錄 `.env` 是 Docker Compose 與本地共用的設定；`backend/.env`（不進版控）只覆寫本地需要不同的值，例如 `DATABASE_URL=mysql+asyncmy://app:apppass@localhost:3306/analytics`。容器內不讀這兩個檔案，由 compose 的 `env_file` 注入。前端只需要後端位址，由 `dev` task 的 `env` 提供。
+- 本地運行（皆在專案根目錄執行）：`docker compose up -d db` 只啟動資料庫 → `pixi run -e backend migrate`、`pixi run -e backend seed`、`pixi run -e backend dev` → 另開終端機執行 `pixi run -e frontend dev`。第一次執行時 pixi 會自動安裝對應環境。本地執行時資料庫主機是 `localhost`，`BACKEND_URL`／`BACKEND_WS_URL` 要指向 `localhost:8000`。
+- 本地的環境變數：只有根目錄一份 `.env`，Docker Compose 與本地共用。後端以 pydantic-settings 讀取 `env_file="../.env"`（後端 task 的 `cwd` 是 `backend/`），環境變數優先於檔案。兩邊唯一不同的是資料庫主機：`.env` 寫 Docker 用的 `DB_HOST=db`，後端的 `dev`、`migrate`、`seed` task 以 `env` 設定 `DB_HOST=localhost`；前端同樣由 `dev` task 的 `env` 提供 `localhost` 的後端位址。容器內沒有這個檔案，由 compose 的 `env_file` 注入；測試容器以 `environment` 覆寫 `DB_HOST=db-test`、`MARIADB_DATABASE=analytics_test`。
 - 選 pixi 的原因：一份 lock 同時鎖定 Python 直譯器與所有套件，本地與容器一致；asyncmy、bcrypt 等含 C 擴充的套件直接取得預編譯版本（conda-forge 套件或 PyPI wheel），build 階段通常不需要安裝編譯工具。替代方案 pip + `requirements.txt` 沒有完整的鎖定檔，且需另外管理 Python 版本。
 - 選單一份 `pixi.toml` 而非前後端各一份：只有一處設定 Python 版本、channel 與 platforms，一次 `pixi install` 就準備好所有環境，一份 lock 涵蓋整個專案。代價是 Docker build context 變成整個專案根目錄，且任一端修改依賴都會改動 `pixi.lock`，讓另一端的依賴快取層也失效重建；以本專案的規模可接受。
 

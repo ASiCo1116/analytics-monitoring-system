@@ -9,7 +9,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     ports:
-      # Exposed for local development with pixi (backend/.env points to localhost:3306)
+      # Exposed for local development with pixi (the tasks set DB_HOST=localhost)
       - "3306:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -88,7 +88,8 @@ services:
     env_file: .env
     environment:
       # Override .env: separate database, no background simulator
-      DATABASE_URL: mysql+asyncmy://${MARIADB_USER}:${MARIADB_PASSWORD}@db-test:3306/analytics_test
+      DB_HOST: db-test
+      MARIADB_DATABASE: analytics_test
       SIMULATOR_ENABLED: "false"
     depends_on:
       db-test:

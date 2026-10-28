@@ -2,6 +2,7 @@ from typing import Annotated
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy import URL
 
 
 class Settings(BaseSettings):
@@ -10,14 +11,18 @@ class Settings(BaseSettings):
     See .env.example for every variable and its default.
     """
 
-    # Later files win: the root .env is shared with Docker Compose,
-    # backend/.env (optional) overrides values for local development.
-    # Inside the container neither file exists; Compose injects the variables.
-    model_config = SettingsConfigDict(
-        env_file=("../.env", ".env"), extra="ignore"
-    )
+    # The root .env, shared with Docker Compose (the backend runs from
+    # backend/). Inside the container the file does not exist; Compose
+    # injects the variables. Environment variables win over the file.
+    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 
-    database_url: str
+    # The same account the MariaDB container creates on first start
+    mariadb_user: str
+    mariadb_password: str
+    mariadb_database: str
+    # `db` inside Docker; the local pixi tasks set localhost
+    db_host: str = "db"
+    db_port: int = 3306
 
     jwt_secret_key: str
     jwt_expire_minutes: int = 60
@@ -48,6 +53,22 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [name.strip() for name in value.split(",") if name.strip()]
         return value
+
+    @property
+    def database_url(self) -> str:
+        """SQLAlchemy connection string built from the parts above.
+
+        URL.create escapes characters such as "@" or "/" in the password.
+        """
+        url = URL.create(
+            "mysql+asyncmy",
+            username=self.mariadb_user,
+            password=self.mariadb_password,
+            host=self.db_host,
+            port=self.db_port,
+            database=self.mariadb_database,
+        )
+        return url.render_as_string(hide_password=False)
 
 
 settings = Settings()

@@ -240,11 +240,10 @@ pixi run format   # 自動格式化
 
 需求：[pixi](https://pixi.sh/latest/#installation) 與 Docker（只用來跑資料庫）。以下指令都在專案根目錄執行，第一次執行時 pixi 會自動安裝對應的環境。
 
-1. 準備環境變數。本地執行時後端要連 `localhost` 的資料庫，用 `backend/.env` 覆寫連線字串（`backend/.env` 不進版控）：
+1. 準備環境變數。本地與 Docker 共用同一份 `.env`；後端的 pixi task 會把資料庫主機 `DB_HOST` 設為 `localhost`，不需要另外修改：
 
    ```bash
-   cp .env.example .env
-   echo 'DATABASE_URL=mysql+asyncmy://app:apppass@localhost:3306/analytics' > backend/.env
+   cp .env.example .env    # 若尚未建立
    ```
 
 2. 只啟動資料庫容器：

@@ -14,7 +14,7 @@ from app.db.base import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Use the same DATABASE_URL as the application
+# Use the same database URL as the application
 # ("%" must be escaped for ConfigParser)
 config.set_main_option(
     "sqlalchemy.url", settings.database_url.replace("%", "%%")
