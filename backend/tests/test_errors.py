@@ -1,8 +1,8 @@
-from sqlalchemy import select
+import pytest
 from sqlalchemy.exc import OperationalError
 
-from app.main import app
-from app.models import LogLevel, SystemLog
+from app.models import LogLevel
+from tests.helpers import audit_logs, temporary_route
 
 BOOM = "/_test/boom"
 DB_DOWN = "/_test/db-down"
@@ -17,8 +17,10 @@ async def db_down():
     raise OperationalError("SELECT 1", {}, ConnectionRefusedError())
 
 
-app.add_api_route(BOOM, boom)
-app.add_api_route(DB_DOWN, db_down)
+@pytest.fixture(autouse=True, scope="module")
+def failing_routes():
+    with temporary_route(BOOM, boom), temporary_route(DB_DOWN, db_down):
+        yield
 
 
 async def test_unexpected_error_returns_plain_500(client, db, caplog):
@@ -33,9 +35,7 @@ async def test_unexpected_error_returns_plain_500(client, db, caplog):
     # Request log line is still written for the 500
     assert f"GET {BOOM} 500" in caplog.text
     # Audit event
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "server_error")
-    )
+    [log] = await audit_logs("server_error")
     assert log.level == LogLevel.ERROR
     assert BOOM in log.message
 

@@ -1,13 +1,13 @@
 """Statistics over data records or stored metrics, computed in the database."""
 
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, Label, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.config import settings
+from app.core.timezone import to_naive_utc
 from app.models import Metric, Record
 from app.schemas.analytics import (
     AnalyticsParams,
@@ -55,7 +55,7 @@ def conditions(params: AnalyticsParams) -> list[ColumnElement[bool]]:
     return result
 
 
-def _aggregates(value: InstrumentedAttribute) -> list:
+def _aggregates(value: InstrumentedAttribute) -> list[Label]:
     return [
         func.count(value).label("count"),
         func.sum(value).label("sum"),
@@ -92,17 +92,15 @@ def _utc_offset() -> str:
     (so CONVERT_TZ cannot take "Asia/Taipei"). Zones with daylight saving
     time are off by an hour around the switch.
     """
-    offset = datetime.now(ZoneInfo(settings.app_timezone)).utcoffset()
+    offset = datetime.now(settings.tz).utcoffset()
     minutes = int(offset.total_seconds() // 60)
     sign = "-" if minutes < 0 else "+"
     return f"{sign}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
 
 
 def _bucket_to_utc(text: str) -> datetime:
-    local = datetime.strptime(text, BUCKET_PARSE_FORMAT).replace(
-        tzinfo=ZoneInfo(settings.app_timezone)
-    )
-    return local.astimezone(UTC).replace(tzinfo=None)
+    # Buckets are cut in local time (see trend)
+    return to_naive_utc(datetime.strptime(text, BUCKET_PARSE_FORMAT))
 
 
 async def trend(

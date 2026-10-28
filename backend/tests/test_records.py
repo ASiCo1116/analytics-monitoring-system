@@ -5,7 +5,8 @@ from sqlalchemy import select
 
 from app.core.security import create_access_token, hash_password
 from app.db.base import utc_now
-from app.models import Record, Role, SystemLog, User
+from app.models import Record, Role, User
+from tests.helpers import TEST_PASSWORD, audit_logs, bearer
 
 RECORDS = "/api/v1/records"
 
@@ -54,9 +55,7 @@ async def test_create_record(client, db, users, auth_headers):
     recorded_at = datetime.fromisoformat(body["recorded_at"])
     assert recorded_at.replace(tzinfo=None) >= before.replace(microsecond=0)
     assert body["recorded_at"].endswith("Z")
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "record_create")
-    )
+    [log] = await audit_logs("record_create")
     assert log is not None
 
 
@@ -209,7 +208,7 @@ async def other_user(db):
     user = User(
         username="other",
         email="other@example.com",
-        hashed_password=hash_password("Password123"),
+        hashed_password=hash_password(TEST_PASSWORD),
         role=Role.user,
     )
     db.add(user)
@@ -234,11 +233,24 @@ async def test_owner_can_update(client, db, auth_headers, add_records):
     assert datetime.fromisoformat(body["updated_at"]).replace(
         tzinfo=None
     ) >= old_updated_at.replace(microsecond=0)
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "record_update")
-    )
+    [log] = await audit_logs("record_update")
     assert "value" in log.message
 
+
+
+async def test_update_logs_only_changed_fields(
+    client, db, auth_headers, add_records
+):
+    (record,) = await add_records({"value": 1, "title": "Same"})
+
+    await client.patch(
+        f"{RECORDS}/{record.id}",
+        json={"value": 2, "title": "Same"},
+        headers=auth_headers[Role.user],
+    )
+
+    [log] = await audit_logs("record_update")
+    assert log.message == f"user updated record {record.id} (value)"
 
 async def test_other_user_cannot_update(
     client, db, auth_headers, add_records, other_user
@@ -249,7 +261,7 @@ async def test_other_user_cannot_update(
     response = await client.patch(
         f"{RECORDS}/{record.id}",
         json={"value": 42},
-        headers={"Authorization": f"Bearer {token}"},
+        headers=bearer(token),
     )
 
     assert response.status_code == 403
@@ -303,9 +315,7 @@ async def test_owner_can_delete(client, db, auth_headers, add_records):
 
     assert deleted.status_code == 204
     assert again.status_code == 404
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "record_delete")
-    )
+    [log] = await audit_logs("record_delete")
     assert log is not None
 
 
@@ -447,9 +457,7 @@ async def test_batch_delete_is_logged(client, db, auth_headers, add_records):
         headers=auth_headers[Role.admin],
     )
 
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "record_batch_delete")
-    )
+    [log] = await audit_logs("record_batch_delete")
     assert log.message == (
         f"admin deleted 3 records: {', '.join(map(str, ids))}"
     )

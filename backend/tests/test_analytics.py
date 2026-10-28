@@ -2,22 +2,22 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from app.core.timezone import to_naive_utc
 from app.db.base import utc_now
 from app.models import Metric, MetricName, Record, Role
 
 SUMMARY = "/api/v1/analytics/summary"
 GROUPS = "/api/v1/analytics/groups"
 TREND = "/api/v1/analytics/trend"
-TAIPEI = timedelta(hours=8)
 
 
 def local(text: str) -> datetime:
-    """A local (Asia/Taipei) time as the naive UTC value stored."""
-    return datetime.fromisoformat(text) - TAIPEI
+    """A local (APP_TIMEZONE) time as the naive UTC value stored."""
+    return to_naive_utc(datetime.fromisoformat(text))
 
 
 @pytest.fixture
-def add_records(db, users):
+def add_category_values(db, users):
     async def _add(*rows: tuple[str, float, datetime]) -> None:
         db.add_all(
             Record(
@@ -85,9 +85,9 @@ async def test_requires_login(client):
     assert response.status_code == 401
 
 
-async def test_records_summary(client, auth_headers, add_records):
+async def test_records_summary(client, auth_headers, add_category_values):
     now = utc_now()
-    await add_records(
+    await add_category_values(
         ("sales", 10, now), ("sales", 20, now), ("traffic", 30, now)
     )
 
@@ -105,8 +105,8 @@ async def test_records_summary(client, auth_headers, add_records):
     }
 
 
-async def test_summary_filters(client, auth_headers, add_records):
-    await add_records(
+async def test_summary_filters(client, auth_headers, add_category_values):
+    await add_category_values(
         ("sales", 10, local("2026-10-01T09:00")),
         ("sales", 20, local("2026-10-02T09:00")),
         ("traffic", 30, local("2026-10-01T09:00")),
@@ -141,9 +141,11 @@ async def test_summary_without_data(client, auth_headers):
     }
 
 
-async def test_records_grouped_by_category(client, auth_headers, add_records):
+async def test_records_grouped_by_category(
+    client, auth_headers, add_category_values
+):
     now = utc_now()
-    await add_records(
+    await add_category_values(
         ("memory", 30, now),
         ("cpu", 10, now),
         ("memory", 50, now),
@@ -216,8 +218,8 @@ async def test_metrics_default_to_last_24_hours(
     assert response.json()["max"] == 50
 
 
-async def test_hourly_trend(client, auth_headers, add_records):
-    await add_records(
+async def test_hourly_trend(client, auth_headers, add_category_values):
+    await add_category_values(
         ("sales", 30, local("2026-10-01T11:05")),
         ("sales", 10, local("2026-10-01T09:10")),
         ("sales", 20, local("2026-10-01T09:40")),
@@ -253,9 +255,11 @@ async def test_hourly_trend(client, auth_headers, add_records):
     ]
 
 
-async def test_days_follow_local_midnight(client, auth_headers, add_records):
+async def test_days_follow_local_midnight(
+    client, auth_headers, add_category_values
+):
     # Both on 2026-10-01 in UTC, but on two different days in Taipei
-    await add_records(
+    await add_category_values(
         ("sales", 1, local("2026-10-01T23:30")),
         ("sales", 2, local("2026-10-02T00:30")),
     )

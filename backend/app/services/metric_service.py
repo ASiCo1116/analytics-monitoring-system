@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Metric
 from app.schemas.metric import MetricListParams
+from app.services.paging import page_of
 
 
 def _filtered(query: Select, params: MetricListParams) -> Select:
@@ -31,8 +32,6 @@ async def list_metrics(
         _filtered(select(Metric), params)
         # Newest first; id breaks ties within the same second
         .order_by(Metric.recorded_at.desc(), Metric.id.desc())
-        .offset((params.page - 1) * params.page_size)
-        .limit(params.page_size)
     )
-    metrics = (await db.scalars(query)).all()
+    metrics = await db.scalars(page_of(query, params))
     return list(metrics), total

@@ -2,12 +2,13 @@ import json
 
 from sqlalchemy import func, select
 
-from app.models import Record, Role, SystemLog
-from app.services.import_service import MAX_ROWS
+from app.models import Record, Role
+from app.services.excel_service import XLSX_MEDIA_TYPE
+from app.services.import_service import MAX_FILE_BYTES, MAX_ROWS
+from tests.helpers import audit_logs
 
 IMPORT = "/api/v1/records/import"
 HEADER = "title,value,category,recorded_at,description\n"
-XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def csv_file(rows: list[str], name: str = "records.csv"):
@@ -35,9 +36,7 @@ async def test_csv_import(client, db, users, auth_headers):
     assert response.json() == {"imported": 50}
     owners = (await db.scalars(select(Record.owner_id).distinct())).all()
     assert owners == [users[Role.user].id]
-    log = await db.scalar(
-        select(SystemLog).where(SystemLog.action == "record_import")
-    )
+    [log] = await audit_logs("record_import")
     assert "50 records" in log.message
 
 
@@ -116,7 +115,7 @@ async def test_unsupported_format(client, auth_headers):
             "file": (
                 "data.xlsx",
                 b"PK\x03\x04",
-                XLSX_TYPE,
+                XLSX_MEDIA_TYPE,
             )
         },
         headers=auth_headers[Role.user],
@@ -137,7 +136,7 @@ async def test_too_many_rows(client, db, auth_headers):
 
 
 async def test_file_too_large(client, auth_headers):
-    big = HEADER + "x" * (5 * 1024 * 1024)
+    big = HEADER + "x" * MAX_FILE_BYTES
 
     response = await client.post(
         IMPORT,

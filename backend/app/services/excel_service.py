@@ -3,17 +3,17 @@
 import asyncio
 import io
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
-from sqlalchemy import select
+from sqlalchemy import Row, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.timezone import to_naive_local
 from app.db.base import utc_now
 from app.models import METRIC_UNITS, Metric, Record, User
 from app.schemas.analytics import (
@@ -32,6 +32,11 @@ XLSX_MEDIA_TYPE = (
 # The detail sheet holds at most this many rows (the newest ones)
 DETAIL_LIMIT = 10_000
 DATETIME_FORMAT = "yyyy-mm-dd hh:mm:ss"
+# Column widths in characters: table sheets, and the summary's label and
+# value columns
+TABLE_COLUMN_WIDTH = 18
+SUMMARY_LABEL_WIDTH = 12
+SUMMARY_VALUE_WIDTH = 40
 SOURCE_LABELS = {Source.records: "資料記錄", Source.metrics: "即時監控資料"}
 STATS_HEADER = ["筆數", "總計", "平均", "最大值", "最小值"]
 
@@ -51,12 +56,7 @@ class Report:
 
 def _local(value: datetime | None) -> datetime | None:
     """Stored naive UTC to naive APP_TIMEZONE time (Excel has no zones)."""
-    if value is None:
-        return None
-    local = value.replace(tzinfo=UTC).astimezone(
-        ZoneInfo(settings.app_timezone)
-    )
-    return local.replace(tzinfo=None)
+    return None if value is None else to_naive_local(value)
 
 
 async def _detail(
@@ -78,6 +78,18 @@ async def _detail(
             .join(Record.owner)
             .order_by(Record.recorded_at.desc(), Record.id.desc())
         )
+
+        def to_row(row: Row) -> list[Any]:
+            return [
+                row.id,
+                row.title,
+                row.value,
+                row.category,
+                _local(row.recorded_at),
+                row.username,
+                row.description,
+            ]
+
     else:
         header = ["記錄時間", "伺服器", "指標", "數值", "單位", "閾值", "異常"]
         query = select(
@@ -88,36 +100,22 @@ async def _detail(
             Metric.threshold,
             Metric.is_anomaly,
         ).order_by(Metric.recorded_at.desc(), Metric.id.desc())
+
+        def to_row(row: Row) -> list[Any]:
+            return [
+                _local(row.recorded_at),
+                row.server,
+                row.metric.value,
+                row.value,
+                METRIC_UNITS[row.metric],
+                row.threshold,
+                row.is_anomaly,
+            ]
+
     query = query.where(*analytics_service.conditions(params)).limit(
         DETAIL_LIMIT
     )
-    rows = []
-    for row in await db.execute(query):
-        if params.source == Source.records:
-            rows.append(
-                [
-                    row.id,
-                    row.title,
-                    row.value,
-                    row.category,
-                    _local(row.recorded_at),
-                    row.username,
-                    row.description,
-                ]
-            )
-        else:
-            rows.append(
-                [
-                    _local(row.recorded_at),
-                    row.server,
-                    row.metric.value,
-                    row.value,
-                    METRIC_UNITS[row.metric],
-                    row.threshold,
-                    row.is_anomaly,
-                ]
-            )
-    return header, rows
+    return header, [to_row(row) for row in await db.execute(query)]
 
 
 async def build_export(
@@ -128,7 +126,10 @@ async def build_export(
     Uses the same service functions as the analytics endpoints, so the
     numbers match what the dashboard shows.
     """
+    # Resolve the range once: with the metrics default ("last 24 hours")
+    # each sheet would otherwise take its own "now"
     start, end = params.time_range()
+    params = params.model_copy(update={"start": start, "end": end})
     detail_header, detail_rows = await _detail(db, params)
     report = Report(
         params=params,
@@ -164,7 +165,9 @@ def _write_table(
                 cell.number_format = DATETIME_FORMAT
     sheet.freeze_panes = "A2"
     for column in sheet.columns:
-        sheet.column_dimensions[column[0].column_letter].width = 18
+        sheet.column_dimensions[
+            column[0].column_letter
+        ].width = TABLE_COLUMN_WIDTH
 
 
 def _stats_values(stats: Stats) -> list[Any]:
@@ -210,8 +213,8 @@ def _render(report: Report) -> bytes:
         row[0].font = Font(bold=True)
         if len(row) > 1 and isinstance(row[1].value, datetime):
             row[1].number_format = DATETIME_FORMAT
-    summary.column_dimensions["A"].width = 12
-    summary.column_dimensions["B"].width = 40
+    summary.column_dimensions["A"].width = SUMMARY_LABEL_WIDTH
+    summary.column_dimensions["B"].width = SUMMARY_VALUE_WIDTH
 
     group_name = "分類" if params.source == Source.records else "伺服器"
     _write_table(

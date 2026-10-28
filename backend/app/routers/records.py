@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, Query, UploadFile, status
 
-from app.deps import CurrentUser, DbSession, client_ip, require_roles
-from app.models import Record, Role, User
+from app.deps import AuditLog, DbSession, WriterUser, get_current_user
+from app.models import Record
 from app.schemas.common import Page
 from app.schemas.record import (
     BatchDeleteResult,
@@ -14,40 +14,35 @@ from app.schemas.record import (
     RecordRead,
     RecordUpdate,
 )
-from app.services import audit_service, import_service, record_service
+from app.services import import_service, record_service
 
-router = APIRouter(prefix="/records", tags=["records"])
-
-# Writing records: Admin and User, never Viewer. Changing or deleting an
-# existing record additionally requires being its creator (or an Admin).
-Writer = Annotated[User, Depends(require_roles(Role.admin, Role.user))]
+# Every logged-in role may read. Writing needs WriterUser (Admin or User);
+# changing or deleting an existing record also requires being its creator
+# (or an Admin).
+router = APIRouter(
+    prefix="/records",
+    tags=["records"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("", response_model=Page[RecordRead])
 async def list_records(
-    params: Annotated[RecordListParams, Query()],
-    db: DbSession,
-    _: CurrentUser,
+    params: Annotated[RecordListParams, Query()], db: DbSession
 ) -> Page[RecordRead]:
     records, total = await record_service.list_records(db, params)
-    return Page[RecordRead](
-        items=[RecordRead.model_validate(r) for r in records],
-        total=total,
-        page=params.page,
-        page_size=params.page_size,
-    )
+    return Page[RecordRead].of(records, total, params)
 
 
 @router.post("", response_model=RecordRead, status_code=status.HTTP_201_CREATED)
 async def create_record(
-    data: RecordCreate, request: Request, db: DbSession, user: Writer
+    data: RecordCreate, audit: AuditLog, db: DbSession, user: WriterUser
 ) -> Record:
     record = await record_service.create_record(db, data, user)
-    await audit_service.log(
+    await audit(
         "record_create",
         f"{user.username} created record {record.id} ({record.title})",
-        user_id=user.id,
-        ip_address=client_ip(request),
+        user=user,
     )
     return record
 
@@ -66,7 +61,7 @@ async def create_record(
     },
 )
 async def import_records(
-    file: UploadFile, request: Request, db: DbSession, user: Writer
+    file: UploadFile, audit: AuditLog, db: DbSession, user: WriterUser
 ) -> ImportResult:
     """Bulk create records from CSV or JSON; all rows or none are stored.
 
@@ -74,24 +69,23 @@ async def import_records(
     may be empty). JSON: an array of objects with the same fields.
     """
     imported = await import_service.import_records(db, file, user)
-    await audit_service.log(
+    await audit(
         "record_import",
         f"{user.username} imported {imported} records from {file.filename}",
-        user_id=user.id,
-        ip_address=client_ip(request),
+        user=user,
     )
     return ImportResult(imported=imported)
 
 
 # Declared before /{record_id} so "categories" is not taken as an id
 @router.get("/categories", response_model=list[str])
-async def list_categories(db: DbSession, _: CurrentUser) -> list[str]:
+async def list_categories(db: DbSession) -> list[str]:
     """Distinct category names in alphabetical order."""
     return await record_service.list_categories(db)
 
 
 @router.get("/{record_id}", response_model=RecordRead)
-async def get_record(record_id: int, db: DbSession, _: CurrentUser) -> Record:
+async def get_record(record_id: int, db: DbSession) -> Record:
     return await record_service.get_record(db, record_id)
 
 
@@ -99,35 +93,31 @@ async def get_record(record_id: int, db: DbSession, _: CurrentUser) -> Record:
 async def update_record(
     record_id: int,
     data: RecordUpdate,
-    request: Request,
+    audit: AuditLog,
     db: DbSession,
-    user: Writer,
+    user: WriterUser,
 ) -> Record:
-    record = await record_service.get_record(db, record_id)
-    record_service.ensure_can_modify(record, user)
-    record = await record_service.update_record(db, record, data)
-    await audit_service.log(
+    record, changed = await record_service.update_record(
+        db, record_id, data, user
+    )
+    await audit(
         "record_update",
         f"{user.username} updated record {record.id} "
-        f"({', '.join(sorted(data.model_fields_set)) or 'no fields'})",
-        user_id=user.id,
-        ip_address=client_ip(request),
+        f"({', '.join(changed) or 'no changes'})",
+        user=user,
     )
     return record
 
 
 @router.delete("/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_record(
-    record_id: int, request: Request, db: DbSession, user: Writer
+    record_id: int, audit: AuditLog, db: DbSession, user: WriterUser
 ) -> None:
-    record = await record_service.get_record(db, record_id)
-    record_service.ensure_can_modify(record, user)
-    await record_service.delete_record(db, record)
-    await audit_service.log(
+    record = await record_service.delete_record(db, record_id, user)
+    await audit(
         "record_delete",
         f"{user.username} deleted record {record_id} ({record.title})",
-        user_id=user.id,
-        ip_address=client_ip(request),
+        user=user,
     )
 
 
@@ -146,15 +136,14 @@ async def delete_record(
     },
 )
 async def batch_delete_records(
-    data: RecordBatchDelete, request: Request, db: DbSession, user: Writer
+    data: RecordBatchDelete, audit: AuditLog, db: DbSession, user: WriterUser
 ) -> BatchDeleteResult:
     """Delete up to 100 records at once; all of them or none."""
     deleted = await record_service.delete_records(db, data.ids, user)
-    await audit_service.log(
+    await audit(
         "record_batch_delete",
         f"{user.username} deleted {deleted} records: "
         f"{', '.join(map(str, data.ids))}",
-        user_id=user.id,
-        ip_address=client_ip(request),
+        user=user,
     )
     return BatchDeleteResult(deleted=deleted)
