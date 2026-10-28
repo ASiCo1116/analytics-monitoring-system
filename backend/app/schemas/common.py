@@ -1,8 +1,14 @@
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Self
 from zoneinfo import ZoneInfo
 
-from pydantic import AfterValidator, BaseModel, Field, PlainSerializer
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    PlainSerializer,
+    model_validator,
+)
 
 from app.core.config import settings
 
@@ -42,6 +48,22 @@ class Page[T](BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class TimeRangeParams(BaseModel):
+    """Time filter shared by the list and analytics endpoints.
+
+    `start` is inclusive, `end` exclusive; each model says which column.
+    """
+
+    start: LocalDatetime | None = None
+    end: LocalDatetime | None = None
+
+    @model_validator(mode="after")
+    def check_range(self) -> Self:
+        if self.start and self.end and self.start > self.end:
+            raise ValueError("start must not be later than end")
+        return self
 
 
 class PageParams(BaseModel):

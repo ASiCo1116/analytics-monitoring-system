@@ -82,22 +82,28 @@ left, right = st.columns(2)
 with left:
     group_label = "分類" if source == "records" else "伺服器"
     st.markdown(f"**依{group_label}的平均值**")
-    groups = api.get("/analytics/groups", **params).json()
-    st.plotly_chart(charts.group_bar(groups, "avg", unit), key="groups_chart")
-    st.dataframe(
-        [
-            {
-                group_label: g["group"],
-                "筆數": g["count"],
-                "總計": g["sum"],
-                "平均": g["avg"],
-                "最大值": g["max"],
-                "最小值": g["min"],
-            }
-            for g in groups
-        ],
-        hide_index=True,
-    )
+    response = api.get("/analytics/groups", **params)
+    if not response.ok:
+        st.error(api.error_text(response))
+    else:
+        groups = response.json()
+        st.plotly_chart(
+            charts.group_bar(groups, "avg", unit), key="groups_chart"
+        )
+        st.dataframe(
+            [
+                {
+                    group_label: g["group"],
+                    "筆數": g["count"],
+                    "總計": g["sum"],
+                    "平均": g["avg"],
+                    "最大值": g["max"],
+                    "最小值": g["min"],
+                }
+                for g in groups
+            ],
+            hide_index=True,
+        )
 with right:
     interval = st.segmented_control(
         "趨勢粒度",
@@ -107,8 +113,13 @@ with right:
         required=True,
         key="analytics_interval",
     )
-    trend = api.get("/analytics/trend", interval=interval, **params).json()
-    st.plotly_chart(charts.trend_line(trend, unit), key="trend_chart")
+    response = api.get("/analytics/trend", interval=interval, **params)
+    if not response.ok:
+        st.error(api.error_text(response))
+    else:
+        st.plotly_chart(
+            charts.trend_line(response.json(), unit), key="trend_chart"
+        )
 
 # ---------- Excel ----------
 st.divider()

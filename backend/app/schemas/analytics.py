@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, Field, model_validator
 
 from app.db.base import utc_now
 from app.models import MetricName
-from app.schemas.common import LocalDatetime, UtcDatetime
+from app.schemas.common import TimeRangeParams, UtcDatetime
 
 # Without a start time, metrics are limited to the last 24 hours: about
 # 780,000 rows are generated per day
@@ -24,13 +24,13 @@ class Interval(StrEnum):
     day = "day"
 
 
-class AnalyticsParams(BaseModel):
-    """Filters shared by every analytics endpoint."""
+class AnalyticsParams(TimeRangeParams):
+    """Filters shared by every analytics endpoint.
+
+    start/end filter recorded_at.
+    """
 
     source: Source
-    # recorded_at range: start inclusive, end exclusive
-    start: LocalDatetime | None = None
-    end: LocalDatetime | None = None
     category: str | None = Field(None, description="source=records only")
     metric: MetricName | None = Field(
         None, description="Required for source=metrics"
@@ -42,8 +42,6 @@ class AnalyticsParams(BaseModel):
         # Different metrics have different units, so they are never mixed
         if self.source == Source.metrics and self.metric is None:
             raise ValueError("metric is required when source is metrics")
-        if self.start and self.end and self.start > self.end:
-            raise ValueError("start must not be later than end")
         return self
 
     def time_range(self) -> tuple[datetime | None, datetime | None]:

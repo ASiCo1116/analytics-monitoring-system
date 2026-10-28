@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
+from contextlib import suppress
 
-from fastapi import WebSocket
+from fastapi import WebSocket, status
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,8 @@ SEND_TIMEOUT_SECONDS = 2
 class ConnectionManager:
     def __init__(self) -> None:
         self._connections: set[WebSocket] = set()
+        # Running close tasks, kept so they are not garbage-collected
+        self._closing: set[asyncio.Task] = set()
 
     def __len__(self) -> int:
         return len(self._connections)
@@ -41,6 +44,21 @@ class ConnectionManager:
             if isinstance(result, Exception):
                 logger.info("Dropping WebSocket client: %r", result)
                 self.disconnect(websocket)
+                # Also close it: a client that only stalled would otherwise
+                # stay connected but never get data again. In the
+                # background, so a hanging close cannot delay this tick.
+                task = asyncio.create_task(_close_quietly(websocket))
+                self._closing.add(task)
+                task.add_done_callback(self._closing.discard)
+
+
+async def _close_quietly(websocket: WebSocket) -> None:
+    """Best effort close with 1013, so the client reconnects."""
+    with suppress(Exception):
+        await asyncio.wait_for(
+            websocket.close(code=status.WS_1013_TRY_AGAIN_LATER),
+            SEND_TIMEOUT_SECONDS,
+        )
 
 
 manager = ConnectionManager()

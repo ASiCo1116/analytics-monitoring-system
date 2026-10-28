@@ -4,7 +4,8 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models import LogLevel, Role
-from app.schemas.common import LocalDatetime, PageParams, UtcDatetime
+from app.realtime.buffer import FlushReason
+from app.schemas.common import PageParams, TimeRangeParams, UtcDatetime
 
 
 class UserListParams(PageParams):
@@ -30,15 +31,12 @@ class UserAdminUpdate(BaseModel):
         return self
 
 
-class LogListParams(PageParams):
-    """Query parameters of GET /admin/logs."""
+class LogListParams(PageParams, TimeRangeParams):
+    """Query parameters of GET /admin/logs; start/end filter created_at."""
 
     level: LogLevel | None = None
     action: str | None = None
     user_id: uuid.UUID | None = None
-    # created_at range: start inclusive, end exclusive
-    start: LocalDatetime | None = None
-    end: LocalDatetime | None = None
 
 
 class SystemLogRead(BaseModel):
@@ -65,8 +63,7 @@ class BufferStatus(BaseModel):
     pending: int  # metrics waiting to be written
     last_flush_at: UtcDatetime | None
     last_flush_count: int | None
-    # "interval" or "size"
-    last_flush_reason: str | None
+    last_flush_reason: FlushReason | None
 
 
 class DbStatus(BaseModel):

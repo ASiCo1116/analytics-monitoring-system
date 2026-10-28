@@ -12,7 +12,8 @@ ME = "/api/v1/users/me"
 ADMIN_ONLY = "/_test/admin-only"
 
 
-# Test-only route to exercise require_roles before real admin endpoints exist
+# Test-only route: checks require_roles on its own, apart from any real
+# endpoint's other logic
 async def admin_only() -> dict[str, bool]:
     return {"ok": True}
 

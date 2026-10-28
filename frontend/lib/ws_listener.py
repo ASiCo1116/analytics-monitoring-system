@@ -74,6 +74,11 @@ class MetricsListener:
             self._stop.wait(RECONNECT_SECONDS)
 
     def _on_open(self, app: websocket.WebSocketApp) -> None:
+        # close() may have run while this connection was being created, in
+        # which case it closed the previous app, not this one
+        if self._stop.is_set():
+            app.close()
+            return
         self.connected = True
 
     def _on_message(self, app: websocket.WebSocketApp, raw: str) -> None:

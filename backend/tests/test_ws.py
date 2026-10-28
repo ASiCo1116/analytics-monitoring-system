@@ -88,12 +88,16 @@ class FakeSocket:
         self.error = error
         self.delay = delay
         self.received = []
+        self.close_code = None
 
     async def send_json(self, message):
         await asyncio.sleep(self.delay)
         if self.error:
             raise self.error
         self.received.append(message)
+
+    async def close(self, code):
+        self.close_code = code
 
 
 async def test_broadcast_drops_failing_and_stalled_clients(monkeypatch):
@@ -110,6 +114,10 @@ async def test_broadcast_drops_failing_and_stalled_clients(monkeypatch):
 
     assert healthy.received == [MESSAGE, MESSAGE]
     assert len(connections) == 1
+    # Dropped clients are closed so they reconnect; the healthy one is not
+    await asyncio.sleep(0.1)
+    assert broken.close_code == stalled.close_code == 1013
+    assert healthy.close_code is None
 
 
 def test_tokens_are_redacted_from_logs():
