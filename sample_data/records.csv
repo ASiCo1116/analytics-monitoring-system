@@ -1,51 +1,51 @@
 title,value,category,recorded_at,description
-Store sales,1009.6,sales,2026-10-01 10:00:00,
-Website visits,2687.2,traffic,2026-10-01 22:00:00,visits; imported sample
-Warehouse stock,274.6,inventory,2026-10-02 10:00:00,units; imported sample
-Server room temperature,19.3,temperature,2026-10-02 22:00:00,
-Store sales,2569.9,sales,2026-10-03 12:00:00,NTD thousand; imported sample
-Website visits,7618.2,traffic,2026-10-04 01:00:00,visits; imported sample
-Warehouse stock,450.8,inventory,2026-10-04 09:00:00,
-Server room temperature,28.3,temperature,2026-10-04 22:00:00,°C; imported sample
-Store sales,4579.4,sales,2026-10-05 14:00:00,NTD thousand; imported sample
-Website visits,2815.0,traffic,2026-10-06 02:00:00,
-Warehouse stock,497.0,inventory,2026-10-06 12:00:00,units; imported sample
-Server room temperature,24.8,temperature,2026-10-06 22:00:00,°C; imported sample
-Store sales,2512.4,sales,2026-10-07 11:00:00,
-Website visits,4073.2,traffic,2026-10-07 23:00:00,visits; imported sample
-Warehouse stock,98.2,inventory,2026-10-08 11:00:00,units; imported sample
-Server room temperature,26.9,temperature,2026-10-08 21:00:00,
-Store sales,4655.7,sales,2026-10-09 11:00:00,NTD thousand; imported sample
-Website visits,6245.8,traffic,2026-10-10 01:00:00,visits; imported sample
-Warehouse stock,153.9,inventory,2026-10-10 14:00:00,
-Server room temperature,22.7,temperature,2026-10-10 21:00:00,°C; imported sample
-Store sales,3954.4,sales,2026-10-11 13:00:00,NTD thousand; imported sample
-Website visits,5764.2,traffic,2026-10-11 23:00:00,
-Warehouse stock,372.0,inventory,2026-10-12 14:00:00,units; imported sample
-Server room temperature,23.6,temperature,2026-10-12 21:00:00,°C; imported sample
-Store sales,3763.4,sales,2026-10-13 13:00:00,
-Website visits,4201.2,traffic,2026-10-14 02:00:00,visits; imported sample
-Warehouse stock,462.9,inventory,2026-10-14 14:00:00,units; imported sample
-Server room temperature,24.2,temperature,2026-10-14 23:00:00,
-Store sales,3337.3,sales,2026-10-15 11:00:00,NTD thousand; imported sample
-Website visits,1491.4,traffic,2026-10-15 22:00:00,visits; imported sample
-Warehouse stock,531.5,inventory,2026-10-16 12:00:00,
-Server room temperature,28.7,temperature,2026-10-17 01:00:00,°C; imported sample
-Store sales,4144.0,sales,2026-10-17 11:00:00,NTD thousand; imported sample
-Website visits,7700.1,traffic,2026-10-18 01:00:00,
-Warehouse stock,398.6,inventory,2026-10-18 13:00:00,units; imported sample
-Server room temperature,19.7,temperature,2026-10-19 01:00:00,°C; imported sample
-Store sales,2787.6,sales,2026-10-19 09:00:00,
-Website visits,7460.9,traffic,2026-10-19 22:00:00,visits; imported sample
-Warehouse stock,120.3,inventory,2026-10-20 14:00:00,units; imported sample
-Server room temperature,26.0,temperature,2026-10-20 23:00:00,
-Store sales,3219.4,sales,2026-10-21 11:00:00,NTD thousand; imported sample
-Website visits,4854.8,traffic,2026-10-21 22:00:00,visits; imported sample
-Warehouse stock,572.7,inventory,2026-10-22 14:00:00,
-Server room temperature,25.5,temperature,2026-10-23 01:00:00,°C; imported sample
-Store sales,2235.6,sales,2026-10-23 13:00:00,NTD thousand; imported sample
-Website visits,6723.4,traffic,2026-10-24 00:00:00,
-Warehouse stock,428.6,inventory,2026-10-24 12:00:00,units; imported sample
-Server room temperature,20.4,temperature,2026-10-25 02:00:00,°C; imported sample
-Store sales,1985.3,sales,2026-10-25 11:00:00,
-Website visits,5341.4,traffic,2026-10-26 01:00:00,visits; imported sample
+server-1 CPU usage,37.5,cpu,2026-10-01 10:00:00,
+server-1 Memory usage,53.7,memory,2026-10-01 20:00:00,%; imported sample
+server-1 Temperature,38.3,temperature,2026-10-02 05:00:00,°C; imported sample
+server-2 CPU usage,18.0,cpu,2026-10-02 18:00:00,
+server-2 Memory usage,33.5,memory,2026-10-03 07:00:00,%; imported sample
+server-2 Temperature,44.7,temperature,2026-10-03 20:00:00,°C; imported sample
+server-3 CPU usage,46.9,cpu,2026-10-04 05:00:00,
+server-3 Memory usage,44.4,memory,2026-10-04 14:00:00,%; imported sample
+server-3 Temperature,54.1,temperature,2026-10-05 03:00:00,°C; imported sample
+server-1 CPU usage,58.1,cpu,2026-10-05 18:00:00,
+server-1 Memory usage,67.8,memory,2026-10-06 04:00:00,%; imported sample
+server-1 Temperature,77.6,temperature,2026-10-06 17:00:00,°C; imported sample
+server-2 CPU usage,59.8,cpu,2026-10-07 06:00:00,
+server-2 Memory usage,88.6,memory,2026-10-07 15:00:00,%; imported sample
+server-2 Temperature,60.0,temperature,2026-10-08 00:00:00,°C; imported sample
+server-3 CPU usage,34.6,cpu,2026-10-08 10:00:00,
+server-3 Memory usage,62.4,memory,2026-10-08 20:00:00,%; imported sample
+server-3 Temperature,48.9,temperature,2026-10-09 09:00:00,°C; imported sample
+server-1 CPU usage,68.0,cpu,2026-10-10 00:00:00,
+server-1 Memory usage,64.9,memory,2026-10-10 09:00:00,%; imported sample
+server-1 Temperature,43.5,temperature,2026-10-10 23:00:00,°C; imported sample
+server-2 CPU usage,56.6,cpu,2026-10-11 08:00:00,
+server-2 Memory usage,63.9,memory,2026-10-11 17:00:00,%; imported sample
+server-2 Temperature,44.3,temperature,2026-10-12 06:00:00,°C; imported sample
+server-3 CPU usage,55.2,cpu,2026-10-12 20:00:00,
+server-3 Memory usage,48.8,memory,2026-10-13 11:00:00,%; imported sample
+server-3 Temperature,76.6,temperature,2026-10-14 00:00:00,°C; imported sample
+server-1 CPU usage,35.5,cpu,2026-10-14 11:00:00,
+server-1 Memory usage,40.8,memory,2026-10-15 02:00:00,%; imported sample
+server-1 Temperature,46.0,temperature,2026-10-15 17:00:00,°C; imported sample
+server-2 CPU usage,35.5,cpu,2026-10-16 06:00:00,
+server-2 Memory usage,82.5,memory,2026-10-16 18:00:00,%; imported sample
+server-2 Temperature,55.2,temperature,2026-10-17 08:00:00,°C; imported sample
+server-3 CPU usage,93.3,cpu,2026-10-17 21:00:00,
+server-3 Memory usage,60.7,memory,2026-10-18 06:00:00,%; imported sample
+server-3 Temperature,69.1,temperature,2026-10-18 16:00:00,°C; imported sample
+server-1 CPU usage,89.3,cpu,2026-10-19 02:00:00,
+server-1 Memory usage,32.4,memory,2026-10-19 14:00:00,%; imported sample
+server-1 Temperature,38.5,temperature,2026-10-20 04:00:00,°C; imported sample
+server-2 CPU usage,58.7,cpu,2026-10-20 17:00:00,
+server-2 Memory usage,48.8,memory,2026-10-21 08:00:00,%; imported sample
+server-2 Temperature,50.8,temperature,2026-10-21 22:00:00,°C; imported sample
+server-3 CPU usage,59.3,cpu,2026-10-22 10:00:00,
+server-3 Memory usage,34.1,memory,2026-10-22 22:00:00,%; imported sample
+server-3 Temperature,77.5,temperature,2026-10-23 07:00:00,°C; imported sample
+server-1 CPU usage,69.2,cpu,2026-10-23 19:00:00,
+server-1 Memory usage,33.6,memory,2026-10-24 04:00:00,%; imported sample
+server-1 Temperature,48.9,temperature,2026-10-24 18:00:00,°C; imported sample
+server-2 CPU usage,94.4,cpu,2026-10-25 07:00:00,
+server-2 Memory usage,56.7,memory,2026-10-25 22:00:00,%; imported sample

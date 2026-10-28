@@ -1,0 +1,335 @@
+[
+  {
+    "title": "server-1 CPU usage",
+    "value": 37.5,
+    "category": "cpu",
+    "recorded_at": "2026-10-01T10:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 53.7,
+    "category": "memory",
+    "recorded_at": "2026-10-01T20:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 38.3,
+    "category": "temperature",
+    "recorded_at": "2026-10-02T05:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 18.0,
+    "category": "cpu",
+    "recorded_at": "2026-10-02T18:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 33.5,
+    "category": "memory",
+    "recorded_at": "2026-10-03T07:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-2 Temperature",
+    "value": 44.7,
+    "category": "temperature",
+    "recorded_at": "2026-10-03T20:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-3 CPU usage",
+    "value": 46.9,
+    "category": "cpu",
+    "recorded_at": "2026-10-04T05:00:00"
+  },
+  {
+    "title": "server-3 Memory usage",
+    "value": 44.4,
+    "category": "memory",
+    "recorded_at": "2026-10-04T14:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-3 Temperature",
+    "value": 54.1,
+    "category": "temperature",
+    "recorded_at": "2026-10-05T03:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-1 CPU usage",
+    "value": 58.1,
+    "category": "cpu",
+    "recorded_at": "2026-10-05T18:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 67.8,
+    "category": "memory",
+    "recorded_at": "2026-10-06T04:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 77.6,
+    "category": "temperature",
+    "recorded_at": "2026-10-06T17:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 59.8,
+    "category": "cpu",
+    "recorded_at": "2026-10-07T06:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 88.6,
+    "category": "memory",
+    "recorded_at": "2026-10-07T15:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-2 Temperature",
+    "value": 60.0,
+    "category": "temperature",
+    "recorded_at": "2026-10-08T00:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-3 CPU usage",
+    "value": 34.6,
+    "category": "cpu",
+    "recorded_at": "2026-10-08T10:00:00"
+  },
+  {
+    "title": "server-3 Memory usage",
+    "value": 62.4,
+    "category": "memory",
+    "recorded_at": "2026-10-08T20:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-3 Temperature",
+    "value": 48.9,
+    "category": "temperature",
+    "recorded_at": "2026-10-09T09:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-1 CPU usage",
+    "value": 68.0,
+    "category": "cpu",
+    "recorded_at": "2026-10-10T00:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 64.9,
+    "category": "memory",
+    "recorded_at": "2026-10-10T09:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 43.5,
+    "category": "temperature",
+    "recorded_at": "2026-10-10T23:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 56.6,
+    "category": "cpu",
+    "recorded_at": "2026-10-11T08:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 63.9,
+    "category": "memory",
+    "recorded_at": "2026-10-11T17:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-2 Temperature",
+    "value": 44.3,
+    "category": "temperature",
+    "recorded_at": "2026-10-12T06:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-3 CPU usage",
+    "value": 55.2,
+    "category": "cpu",
+    "recorded_at": "2026-10-12T20:00:00"
+  },
+  {
+    "title": "server-3 Memory usage",
+    "value": 48.8,
+    "category": "memory",
+    "recorded_at": "2026-10-13T11:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-3 Temperature",
+    "value": 76.6,
+    "category": "temperature",
+    "recorded_at": "2026-10-14T00:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-1 CPU usage",
+    "value": 35.5,
+    "category": "cpu",
+    "recorded_at": "2026-10-14T11:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 40.8,
+    "category": "memory",
+    "recorded_at": "2026-10-15T02:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 46.0,
+    "category": "temperature",
+    "recorded_at": "2026-10-15T17:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 35.5,
+    "category": "cpu",
+    "recorded_at": "2026-10-16T06:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 82.5,
+    "category": "memory",
+    "recorded_at": "2026-10-16T18:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-2 Temperature",
+    "value": 55.2,
+    "category": "temperature",
+    "recorded_at": "2026-10-17T08:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-3 CPU usage",
+    "value": 93.3,
+    "category": "cpu",
+    "recorded_at": "2026-10-17T21:00:00"
+  },
+  {
+    "title": "server-3 Memory usage",
+    "value": 60.7,
+    "category": "memory",
+    "recorded_at": "2026-10-18T06:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-3 Temperature",
+    "value": 69.1,
+    "category": "temperature",
+    "recorded_at": "2026-10-18T16:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-1 CPU usage",
+    "value": 89.3,
+    "category": "cpu",
+    "recorded_at": "2026-10-19T02:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 32.4,
+    "category": "memory",
+    "recorded_at": "2026-10-19T14:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 38.5,
+    "category": "temperature",
+    "recorded_at": "2026-10-20T04:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 58.7,
+    "category": "cpu",
+    "recorded_at": "2026-10-20T17:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 48.8,
+    "category": "memory",
+    "recorded_at": "2026-10-21T08:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-2 Temperature",
+    "value": 50.8,
+    "category": "temperature",
+    "recorded_at": "2026-10-21T22:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-3 CPU usage",
+    "value": 59.3,
+    "category": "cpu",
+    "recorded_at": "2026-10-22T10:00:00"
+  },
+  {
+    "title": "server-3 Memory usage",
+    "value": 34.1,
+    "category": "memory",
+    "recorded_at": "2026-10-22T22:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-3 Temperature",
+    "value": 77.5,
+    "category": "temperature",
+    "recorded_at": "2026-10-23T07:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-1 CPU usage",
+    "value": 69.2,
+    "category": "cpu",
+    "recorded_at": "2026-10-23T19:00:00"
+  },
+  {
+    "title": "server-1 Memory usage",
+    "value": 33.6,
+    "category": "memory",
+    "recorded_at": "2026-10-24T04:00:00",
+    "description": "%; imported sample"
+  },
+  {
+    "title": "server-1 Temperature",
+    "value": 48.9,
+    "category": "temperature",
+    "recorded_at": "2026-10-24T18:00:00",
+    "description": "°C; imported sample"
+  },
+  {
+    "title": "server-2 CPU usage",
+    "value": 94.4,
+    "category": "cpu",
+    "recorded_at": "2026-10-25T07:00:00"
+  },
+  {
+    "title": "server-2 Memory usage",
+    "value": 56.7,
+    "category": "memory",
+    "recorded_at": "2026-10-25T22:00:00",
+    "description": "%; imported sample"
+  }
+]

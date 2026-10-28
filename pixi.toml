@@ -47,7 +47,7 @@ plotly = ">=7.1.0,<8"
 
 [feature.frontend.tasks]
 # Locally the backend runs on localhost instead of the `backend` Compose service
-dev = { cmd = "streamlit run app.py --server.port 8501", cwd = "frontend", env = { BACKEND_URL = "http://localhost:8000", BACKEND_WS_URL = "ws://localhost:8000" } }
+dev = { cmd = "streamlit run server.py --server.port 8501", cwd = "frontend", env = { BACKEND_URL = "http://localhost:8000", BACKEND_WS_URL = "ws://localhost:8000" } }
 
 # ---------- lint ----------
 [feature.lint.tasks]

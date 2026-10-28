@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_RECORD_COUNT = 200
 SAMPLE_DAYS = 30
-# category: (title, lowest value, highest value)
+# Server readings, like the realtime metrics but kept in their own table.
+# category: (title after the server name, lowest value, highest value)
 SAMPLE_CATEGORIES = {
-    "sales": ("Store sales", 800, 5000),
-    "traffic": ("Website visits", 1200, 9000),
-    "inventory": ("Warehouse stock", 50, 600),
-    "temperature": ("Server room temperature", 19, 31),
+    "cpu": ("CPU usage", 10, 95),
+    "memory": ("Memory usage", 30, 90),
+    "temperature": ("Temperature", 35, 80),
 }
 
 
@@ -78,12 +78,16 @@ async def seed_records(session: AsyncSession) -> None:
     rng = random.Random(42)
     now = utc_now()
     categories = list(SAMPLE_CATEGORIES)
+    servers = settings.simulator_servers
     for i in range(SAMPLE_RECORD_COUNT):
         category = categories[i % len(categories)]
         title, low, high = SAMPLE_CATEGORIES[category]
+        # Next server after every full round of categories, so each
+        # server gets every category
+        server = servers[i // len(categories) % len(servers)]
         session.add(
             Record(
-                title=title,
+                title=f"{server} {title}",
                 value=round(rng.uniform(low, high), 1),
                 category=category,
                 recorded_at=now

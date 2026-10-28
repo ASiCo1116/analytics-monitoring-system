@@ -10,18 +10,37 @@
 | 系統管理 | 使用者角色與啟用狀態管理、系統日誌查詢、資料庫狀態（連線、連線池、各表筆數、批次寫入狀態）、即時資料歷史查詢 |
 | 認證與權限 | JWT 登入，三種角色：Admin（全部功能）、User（新增與匯入資料，只能改刪自己建立的）、Viewer（只能瀏覽與下載） |
 
+## Demo
+
+### 即時監控
+
+![即時監控](assets/realtime.png)
+
+### 資料記錄
+
+![資料記錄](assets/records.png)
+
+### 資料分析
+
+![資料分析](assets/analytics.png)
+
+### 系統管理
+
+![系統管理](assets/admin.png)
+
 ## 系統架構圖
 
-後端是單一 uvicorn 行程：REST API、WebSocket 推送、模擬器與批次寫入都在同一個行程內；前端在容器內呼叫後端，不經過瀏覽器。
+後端是單一 uvicorn 執行緒：REST API、WebSocket 推送、模擬器與批次寫入都在同一個執行緒內；前端在容器內呼叫後端，不經過瀏覽器。
 
 ```mermaid
 flowchart LR
-    browser["👤 瀏覽器"]
+    browser["👤 瀏覽器<br/>HttpOnly cookie 保存 JWT"]
 
     subgraph net["Docker network: app-net"]
         direction LR
         subgraph fe["frontend 容器 :8501"]
             st["Streamlit 多頁面應用<br/>session_state 存 JWT"]
+            routes["登入 cookie 路由<br/>/session/start、/session/end"]
             wsc["WebSocket 接收執行緒<br/>（每個使用者 session 一條）"]
         end
 
@@ -40,6 +59,7 @@ flowchart LR
     vol[("volume: db_data")]
 
     browser -- "HTTP :8501" --> st
+    browser -- "設定／清除 cookie" --> routes
     browser -. "Swagger :8000/docs" .-> api
     st -- "REST (requests)" --> api
     wsc <-- "WebSocket" --> wsr
@@ -48,6 +68,34 @@ flowchart LR
     api -- "SQLAlchemy async ORM<br/>asyncmy + 連線池" --> db
     writer -- "ORM 批次寫入" --> db
     db --- vol
+```
+
+### 登入流程
+
+Streamlit 程式無法直接寫 cookie，所以登入成功後先把 token 存在記憶體並發一張一次性票證，再讓瀏覽器到前端伺服器的 `/session/start` 換成 HttpOnly cookie；token 不會出現在網址上。之後重新整理或開新分頁，都會從 cookie 恢復登入。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 瀏覽器
+    participant S as Streamlit 程式
+    participant R as /session/* 路由
+    participant B as 後端 API
+
+    U->>S: 送出帳號密碼
+    S->>B: POST /auth/login
+    B-->>S: JWT
+    S->>S: 存入一次性票證（30 秒）
+    S-->>U: 導向 /session/start?ticket=…
+    U->>R: GET /session/start?ticket=…
+    R-->>U: 303 → /，Set-Cookie（HttpOnly、SameSite=Lax）
+    U->>S: 新的 session（重新整理、開新分頁也一樣），帶著 cookie
+    S->>B: GET /users/me
+    alt 200
+        B-->>S: 使用者資料 → 恢復登入
+    else 401／帳號停用
+        S-->>U: 導向 /session/end?expired=1，清除 cookie 並顯示過期提示
+    end
 ```
 
 ### 即時資料流
@@ -76,9 +124,7 @@ sequenceDiagram
     end
 ```
 
-### 資料庫結構
-
-使用者 id 為 UUIDv7，其餘資料表使用自增整數主鍵；時間一律以 UTC 儲存，前端轉成 `APP_TIMEZONE`（預設 Asia/Taipei）顯示。
+### ER Diagram
 
 ```mermaid
 erDiagram
@@ -133,11 +179,11 @@ erDiagram
 
 | 層 | 技術 |
 |---|---|
-| 後端 | FastAPI、Pydantic v2、SQLAlchemy 2.1 async ORM（asyncmy driver）、Alembic、PyJWT + bcrypt、Uvicorn |
+| 後端 | Python 3.14、FastAPI、Pydantic v2、SQLAlchemy 2.1 async ORM（asyncmy driver）、Alembic、PyJWT + bcrypt、Uvicorn |
 | 前端 | Streamlit、Plotly、requests、websocket-client |
 | 資料庫 | MariaDB 11.7 |
-| 套件與環境 | [pixi](https://pixi.sh)（conda-forge 優先，缺少的從 PyPI），Python 3.14 |
-| 部署 | Docker 多階段建置、Docker Compose |
+| 套件管理 | [pixi](https://pixi.sh) |
+| 部署 | Docker、Docker Compose |
 | 測試 | pytest、pytest-asyncio、httpx |
 
 專案根目錄只有一份 `pixi.toml` / `pixi.lock`，以 environment 區分用途：
@@ -151,79 +197,10 @@ erDiagram
 
 ## Docker 部署
 
-需求：Docker 與 Docker Compose v2。
-
 ```bash
 cp .env.example .env          # 預設值可直接使用
 docker compose up -d --build
 ```
-
-| 服務 | 位址 |
-|---|---|
-| 前端 | http://localhost:8501 |
-| 後端 API | http://localhost:8000 |
-| Swagger 文件 | http://localhost:8000/docs |
-
-常用指令：
-
-```bash
-docker compose ps              # 查看服務狀態（三個服務都應為 healthy）
-docker compose logs -f backend # 查看後端日誌
-docker compose down            # 停止，保留資料
-docker compose down -v         # 停止並清除資料庫資料
-```
-
-## 測試帳號
-
-後端啟動時會自動建立三個測試帳號（已存在就略過）。密碼取自 `.env`，以下是 `.env.example` 的預設值：
-
-| 角色 | 帳號 | 密碼 | 權限 |
-|---|---|---|---|
-| Admin | `admin` | `Admin@1234` | 全部功能，含系統管理 |
-| User | `user` | `User@1234` | 瀏覽、新增與匯入資料；只能修改、刪除自己建立的資料 |
-| Viewer | `viewer` | `Viewer@1234` | 只能瀏覽與下載 |
-
-資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料（大多屬於 `user`，少部分屬於 `admin`）。另有 `sample_data/records.csv`（50 筆）可用來測試匯入功能。
-
-## 主要設定
-
-所有設定都在 `.env`（由 `.env.example` 複製），每個變數都有說明與可直接使用的預設值。常調整的有：
-
-| 變數 | 預設值 | 說明 |
-|---|---|---|
-| `THRESHOLD_CPU` / `THRESHOLD_MEMORY` / `THRESHOLD_TEMPERATURE` | `90` / `90` / `80` | 異常閾值，數值大於閾值即為異常 |
-| `SIMULATOR_ENABLED` / `SIMULATOR_SERVERS` | `true` / `server-1,server-2,server-3` | 模擬器開關與伺服器清單 |
-| `BATCH_INTERVAL_SECONDS` / `BATCH_SIZE` | `10` / `100` | 批次寫入的時間與筆數條件 |
-| `JWT_EXPIRE_MINUTES` | `60` | 登入有效時間 |
-| `APP_TIMEZONE` | `Asia/Taipei` | 顯示時區；沒帶時區的輸入時間也以此解讀 |
-
-修改後執行 `docker compose up -d` 重新建立對應的容器即可生效。
-
-## API 文件連結
-
-後端啟動後可開啟：
-
-| 文件 | 位址 |
-|---|---|
-| Swagger UI（可直接呼叫 API） | http://localhost:8000/docs |
-| ReDoc | http://localhost:8000/redoc |
-| OpenAPI JSON | http://localhost:8000/openapi.json |
-
-在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。所有 API 前綴為 `/api/v1`，例如登入是 `POST /api/v1/auth/login`。
-
-## 執行測試
-
-後端測試在 Docker 中執行，使用獨立的 `db-test` 資料庫（資料只存在記憶體），不會影響正式資料：
-
-```bash
-cp .env.example .env    # 若尚未建立
-docker compose --profile test run --rm --build backend-test
-```
-
-- `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose rm -sf db-test` 停止並移除測試資料庫，不影響主系統（只 `stop` 會留下容器，之後主系統 `down` 時 network 被刪，下次測試會啟動失敗）。
-- 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
-- 開 PR 或推送新的 commit 到 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會執行 lint（`pixi run lint`）與上面的測試指令。
-
 
 ## 本地運行
 
@@ -255,6 +232,45 @@ docker compose --profile test run --rm --build backend-test
    pixi run -e frontend dev
    ```
 
+## 測試帳號
+
+後端啟動時會自動建立三個測試帳號（已存在就略過）。密碼取自 `.env`，以下是 `.env.example` 的預設值：
+
+| 角色 | 帳號 | 密碼 | 權限 |
+|---|---|---|---|
+| Admin | `admin` | `Admin@1234` | 全部功能，含系統管理 |
+| User | `user` | `User@1234` | 瀏覽、新增與匯入資料；只能修改、刪除自己建立的資料 |
+| Viewer | `viewer` | `Viewer@1234` | 只能瀏覽與下載 |
+
+資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料：各伺服器的 CPU、記憶體、溫度讀數（分類為 `cpu`、`memory`、`temperature`），大多屬於 `user`，少部分屬於 `admin`。另有 `sample_data/records.csv` 與內容相同的 `sample_data/records.json`（各 50 筆）可用來測試匯入功能。
+
+## 主要設定
+
+所有設定都在 `.env`（由 `.env.example` 複製），每個變數都有說明與可直接使用的預設值。常調整的有：
+
+| 變數 | 預設值 | 說明 |
+|---|---|---|
+| `THRESHOLD_CPU` / `THRESHOLD_MEMORY` / `THRESHOLD_TEMPERATURE` | `90` / `90` / `80` | 異常閾值，數值大於閾值即為異常 |
+| `SIMULATOR_ENABLED` / `SIMULATOR_SERVERS` | `true` / `server-1,server-2,server-3` | 模擬器開關與伺服器清單 |
+| `BATCH_INTERVAL_SECONDS` / `BATCH_SIZE` | `10` / `100` | 批次寫入的時間與筆數條件 |
+| `JWT_EXPIRE_MINUTES` | `60` | 登入有效時間 |
+| `APP_TIMEZONE` | `Asia/Taipei` | 顯示時區；沒帶時區的輸入時間也以此解讀 |
+
+修改後執行 `docker compose up -d` 重新建立對應的容器即可生效。
+
+## API 文件連結
+
+後端啟動後可開啟：
+
+| 文件 | 位址 |
+|---|---|
+| Swagger UI（可直接呼叫 API） | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+| OpenAPI JSON | http://localhost:8000/openapi.json |
+
+在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。所有 API 前綴為 `/api/v1`，例如登入是 `POST /api/v1/auth/login`。
+
+
 ## 專案結構
 
 ```
@@ -274,10 +290,11 @@ docker compose --profile test run --rm --build backend-test
 │   ├── alembic/         # 資料庫遷移
 │   └── tests/
 ├── frontend/
+│   ├── server.py        # 啟動入口：app.py 加上設定／清除登入 cookie 的路由
 │   ├── app.py           # 依登入狀態與角色組出頁面
 │   ├── views/           # 登入、即時監控、資料記錄、資料分析、系統管理
 │   └── lib/             # API 呼叫、WebSocket 接收執行緒、圖表、共用元件
-├── sample_data/records.csv
+├── sample_data/         # 匯入範例：records.csv、records.json
 ├── openspec/            # 需求規格與設計文件
 ├── .github/workflows/   # CI：PR 時執行 lint 與測試
 ├── docker-compose.yml
@@ -285,12 +302,10 @@ docker compose --profile test run --rm --build backend-test
 └── .env.example
 ```
 
-完整的設計決策（時區規則、API 一覽、批次寫入與 WebSocket 認證的細節等）見 [design.md](openspec/changes/archive/2026-10-28-realtime-analytics-monitoring-system/design.md)。
-
 ## 已知限制與改進方向
 
-- **單一後端行程，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 行程內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
-- **重新整理瀏覽器頁面需要重新登入**：token 只存在 Streamlit 的 session，不存 cookie。
+- **單一後端執行緒，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 執行緒內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
+- **登入保存在 HttpOnly cookie，有效期與 token 相同**（預設 60 分鐘）：重新整理或開新分頁會自動恢復登入，到期後需重新登入。在一個分頁登出時，同一瀏覽器的其他分頁要到重新整理或下一次操作時才會登出。前端只能有一個實例（登入時交換 cookie 的一次性票證存在記憶體中）。經由 HTTPS 存取時 cookie 會加上 Secure；若放在反向代理後面，需要讓 Streamlit 信任 `X-Forwarded-Proto`。
 - **WebSocket 連線後 token 過期仍會繼續推送**：token 只在連線時檢查；推送內容是非敏感的模擬資料。斷線重連時會重新檢查，過期就登出。
 - **每個瀏覽器分頁一條 WebSocket 接收執行緒**：直接關閉分頁時執行緒不會立刻結束，超過 10 分鐘沒有使用才會自行關閉。
 - **metrics 資料沒有清理機制**：預設每天約 78 萬筆。分析預設只查最近 24 小時、Excel 明細最多 10,000 筆，但資料庫狀態頁以 `COUNT(*)` 計算各表筆數，長期累積後會變慢。改進方向：定期刪除或彙總舊資料、筆數改用近似值。

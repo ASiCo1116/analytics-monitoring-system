@@ -35,12 +35,17 @@ def _send(method: str, path: str, **kwargs: Any) -> requests.Response:
         st.stop()
 
 
+def ends_login(response: requests.Response) -> bool:
+    """A 401, or a 403 for a disabled account: the login is over."""
+    return response.status_code == 401 or (
+        response.status_code == 403 and _detail(response) == INACTIVE_USER
+    )
+
+
 def request(method: str, path: str, **kwargs: Any) -> requests.Response:
     headers = {"Authorization": f"Bearer {session.token()}"}
     response = _send(method, path, headers=headers, **kwargs)
-    if response.status_code == 401 or (
-        response.status_code == 403 and _detail(response) == INACTIVE_USER
-    ):
+    if ends_login(response):
         session.end(expired=True)
         st.rerun()
     return response

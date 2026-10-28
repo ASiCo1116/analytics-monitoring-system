@@ -5,4 +5,4 @@ set -e
 
 source /shell-hook.sh
 
-exec streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+exec streamlit run server.py --server.address 0.0.0.0 --server.port 8501
