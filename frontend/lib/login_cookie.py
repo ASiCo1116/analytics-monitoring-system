@@ -3,8 +3,10 @@
 Streamlit code cannot set cookies, so two routes on the Streamlit server
 (mounted by server.py) do it. After a login the script stores the token
 under a one-time ticket and sends the browser to /session/start?ticket=...;
-the route swaps the ticket for the cookie. The token itself never appears
-in a URL. /session/end deletes the cookie (logout, expiry).
+the route swaps the ticket for the cookie, so the token never appears in
+the browser's address bar or history. (The backend WebSocket URL does carry
+it, as ?token=, from the Streamlit server.) /session/end deletes the cookie
+(logout, expiry).
 """
 
 import base64

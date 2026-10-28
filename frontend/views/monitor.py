@@ -36,6 +36,10 @@ def live_panel(metric: str) -> None:
         st.info("等待即時資料…")
         return
     latest = [i for i in history[-1]["data"] if i["metric"] == metric]
+    if not latest:
+        # The backend sends an empty batch when no servers are configured
+        st.info("目前沒有任何伺服器的資料。")
+        return
     threshold = latest[0]["threshold"]
     unit = latest[0]["unit"]
 

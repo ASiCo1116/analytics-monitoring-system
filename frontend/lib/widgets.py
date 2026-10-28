@@ -18,6 +18,11 @@ def pager(key: str, total: int, page_size: int) -> None:
     """Previous/next buttons and a "page x of y" caption."""
     page = current_page(key)
     pages = max(1, math.ceil(total / page_size))
+    if page > pages:
+        # The data shrank under us (e.g. the last page was deleted): go to
+        # the new last page instead of showing an empty "3 / 2"
+        st.session_state[key] = pages
+        st.rerun()
     prev_col, info_col, next_col = st.columns([1, 3, 1])
     if prev_col.button(
         "上一頁", disabled=page <= 1, key=f"{key}_prev", width="stretch"

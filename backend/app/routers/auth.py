@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.security import (
+    check_login_password,
     create_access_token,
-    hash_password,
-    verify_password,
+    hash_password_async,
 )
 from app.deps import INACTIVE_USER, DbSession, client_ip
 from app.models import LogLevel, User
@@ -27,7 +27,7 @@ async def register(data: UserCreate, request: Request, db: DbSession) -> User:
     user = User(
         username=data.username,
         email=data.email,
-        hashed_password=hash_password(data.password),
+        hashed_password=await hash_password_async(data.password),
     )
     db.add(user)
     try:
@@ -57,7 +57,8 @@ async def login(
     """OAuth2 password flow (form fields), so Swagger's Authorize works."""
     ip = client_ip(request)
     user = await db.scalar(select(User).where(User.username == form.username))
-    if user is None or not verify_password(form.password, user.hashed_password):
+    hashed = user.hashed_password if user else None
+    if not await check_login_password(form.password, hashed):
         await audit_service.log(
             "login_failed",
             f"Failed login for username {form.username}",

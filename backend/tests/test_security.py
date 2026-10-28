@@ -4,11 +4,14 @@ from datetime import timedelta
 import jwt
 import pytest
 
+from app.core import security
 from app.core.config import settings
 from app.core.security import (
+    check_login_password,
     create_access_token,
     decode_access_token,
     hash_password,
+    hash_password_async,
     verify_password,
 )
 from app.models import Role
@@ -20,6 +23,30 @@ def test_hash_and_verify_password():
     assert hashed != "Password123"
     assert verify_password("Password123", hashed)
     assert not verify_password("wrong-password", hashed)
+
+
+
+async def test_async_hash_and_login_check():
+    hashed = await hash_password_async("Password123")
+
+    assert await check_login_password("Password123", hashed)
+    assert not await check_login_password("wrong-password", hashed)
+
+
+async def test_unknown_user_still_runs_bcrypt(monkeypatch):
+    # A missing account must cost a bcrypt check too, or the response
+    # time would reveal which usernames exist
+    calls = []
+    real_verify = security.verify_password
+    monkeypatch.setattr(
+        security,
+        "verify_password",
+        lambda password, hashed: calls.append(hashed)
+        or real_verify(password, hashed),
+    )
+
+    assert not await check_login_password("Password123", None)
+    assert len(calls) == 1
 
 
 def test_password_over_72_bytes_is_rejected_without_error():

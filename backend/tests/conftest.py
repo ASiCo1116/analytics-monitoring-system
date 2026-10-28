@@ -18,6 +18,7 @@ from app.db import session as db_session
 from app.db.base import Base
 from app.main import app
 from app.models import Role, User
+from app.realtime.buffer import metric_buffer
 
 TEST_PASSWORD = "Password123"
 
@@ -50,6 +51,17 @@ async def database():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await test_engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def fresh_metric_buffer(monkeypatch):
+    """Start every test with an empty app-wide buffer.
+
+    It is a module-level object, so a test that fills or flushes it (e.g.
+    the lifespan test) would otherwise leak into later tests.
+    """
+    monkeypatch.setattr(metric_buffer, "_items", [])
+    monkeypatch.setattr(metric_buffer, "last_flush", None)
 
 
 @pytest.fixture(autouse=True)

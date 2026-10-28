@@ -1,5 +1,7 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from functools import cache
 
 import bcrypt
 import jwt
@@ -23,6 +25,29 @@ def verify_password(password: str, hashed_password: str) -> bool:
     if len(data) > MAX_PASSWORD_BYTES:
         return False
     return bcrypt.checkpw(data, hashed_password.encode())
+
+
+@cache
+def _dummy_hash() -> str:
+    return hash_password("not-a-real-password")
+
+
+async def hash_password_async(password: str) -> str:
+    """hash_password in a worker thread: bcrypt takes ~250 ms of CPU."""
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def check_login_password(password: str, hashed: str | None) -> bool:
+    """verify_password in a worker thread, also for unknown users.
+
+    With no account (`hashed` is None) a dummy hash is checked, so a failed
+    login takes the same time either way and does not reveal which
+    usernames exist.
+    """
+    ok = await asyncio.to_thread(
+        lambda: verify_password(password, hashed or _dummy_hash())
+    )
+    return ok and hashed is not None
 
 
 def create_access_token(

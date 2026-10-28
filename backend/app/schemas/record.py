@@ -11,7 +11,12 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.common import LocalDatetime, PageParams, UtcDatetime
+from app.schemas.common import (
+    LocalDatetime,
+    PageParams,
+    TimeRangeParams,
+    UtcDatetime,
+)
 
 # Leading/trailing spaces are removed first, so "   " counts as empty
 Title = Annotated[
@@ -76,15 +81,12 @@ class RecordRead(BaseModel):
     updated_at: UtcDatetime
 
 
-class RecordListParams(PageParams):
-    """Query parameters of GET /records."""
+class RecordListParams(PageParams, TimeRangeParams):
+    """Query parameters of GET /records; start/end filter recorded_at."""
 
     category: str | None = None
     min_value: float | None = None
     max_value: float | None = None
-    # recorded_at range: start inclusive, end exclusive
-    start: LocalDatetime | None = None
-    end: LocalDatetime | None = None
     # Keyword searched in the title
     q: str | None = None
     sort: str = Field("-recorded_at", pattern=SORT_PATTERN)

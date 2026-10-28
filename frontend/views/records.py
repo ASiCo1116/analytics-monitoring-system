@@ -113,7 +113,13 @@ if selected:
         st.warning(f"選取的記錄中有 {skipped} 筆不是你建立的，刪除時會略過。")
     if deletable:
         count = len(deletable)
-        confirm = st.checkbox(f"確認刪除選取的 {count} 筆記錄")
+        ids = [r["id"] for r in deletable]
+        # Keyed by the exact rows: ticking it for one selection must not
+        # carry over to another selection of the same size
+        confirm = st.checkbox(
+            f"確認刪除選取的 {count} 筆記錄",
+            key=f"records_batch_confirm_{hash(tuple(ids))}",
+        )
         if st.button(
             f"刪除選取的 {count} 筆",
             disabled=not confirm,
@@ -122,7 +128,7 @@ if selected:
             deleted = api.request(
                 "POST",
                 "/records/batch-delete",
-                json={"ids": [r["id"] for r in deletable]},
+                json={"ids": ids},
             )
             if deleted.ok:
                 st.session_state.records_flash = (
@@ -174,11 +180,15 @@ def record_fields(prefix: str, record: dict | None = None) -> dict:
 
 create_tab, edit_tab, import_tab = st.tabs(["新增", "編輯／刪除", "匯入"])
 
-with create_tab, st.form("create_record", clear_on_submit=True):
-    data = record_fields("create")
+# Bumped after each successful create: new widget keys give an empty form,
+# while after an error the same keys keep what the user typed
+form_round = st.session_state.get("records_create_round", 0)
+with create_tab, st.form(f"create_record_{form_round}"):
+    data = record_fields(f"create_{form_round}")
     if st.form_submit_button("新增", type="primary"):
         created = api.request("POST", "/records", json=data)
         if created.status_code == 201:
+            st.session_state.records_create_round = form_round + 1
             st.session_state.records_flash = (
                 f"已新增記錄 {created.json()['id']}"
             )
@@ -190,11 +200,17 @@ with edit_tab:
     if not editable:
         st.caption("這一頁沒有可編輯的記錄（只能編輯自己建立的記錄）。")
     else:
-        chosen = st.selectbox(
-            "選擇記錄",
-            editable,
-            format_func=lambda r: f"{r['id']} – {r['title']}",
-        )
+        by_id = {r["id"]: r for r in editable}
+        # Options are ids and the widget is keyed, so the choice survives a
+        # title edit (the shown label changes, the id does not)
+        chosen = by_id[
+            st.selectbox(
+                "選擇記錄",
+                list(by_id),
+                format_func=lambda i: f"{i} – {by_id[i]['title']}",
+                key="records_edit_choice",
+            )
+        ]
         with st.form(f"edit_record_{chosen['id']}"):
             data = record_fields(f"edit_{chosen['id']}", chosen)
             if st.form_submit_button("儲存變更", type="primary"):
@@ -204,7 +220,11 @@ with edit_tab:
                     "title": chosen["title"],
                     "value": chosen["value"],
                     "category": chosen["category"],
-                    "recorded_at": to_local(chosen["recorded_at"]).isoformat(),
+                    # The time input keeps minutes only; compare at that
+                    # precision so an untouched time is not a change
+                    "recorded_at": to_local(chosen["recorded_at"])
+                    .replace(second=0, microsecond=0)
+                    .isoformat(),
                     "description": chosen["description"],
                 }
                 changes = {k: v for k, v in data.items() if v != original[k]}

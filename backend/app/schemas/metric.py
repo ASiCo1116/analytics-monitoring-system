@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
 from app.models import MetricName
-from app.schemas.common import LocalDatetime, PageParams, UtcDatetime
+from app.schemas.common import PageParams, TimeRangeParams, UtcDatetime
 
 
 class MetricSample(BaseModel):
@@ -24,12 +24,9 @@ class MetricRead(MetricSample):
     id: int
 
 
-class MetricListParams(PageParams):
-    """Query parameters of GET /metrics."""
+class MetricListParams(PageParams, TimeRangeParams):
+    """Query parameters of GET /metrics; start/end filter recorded_at."""
 
     server: str | None = None
     metric: MetricName | None = None
-    # recorded_at range: start inclusive, end exclusive
-    start: LocalDatetime | None = None
-    end: LocalDatetime | None = None
     anomaly_only: bool = False
