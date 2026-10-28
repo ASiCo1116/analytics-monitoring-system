@@ -120,6 +120,7 @@ docker compose down -v         # 停止並清除資料庫資料（下次啟動�
 模擬器是後端內建的背景任務，用來代替真實伺服器產生即時監控資料：每秒為每台虛擬伺服器（預設 `server-1`～`server-3`）各產生一筆 CPU、記憶體、溫度數值。數值在正常水準附近隨機波動，約 1% 的機率會突然超過閾值，讓告警在幾分鐘內就會出現。可用 `SIMULATOR_ENABLED=false` 關閉。
 
 ```mermaid
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart LR
     browser["👤 瀏覽器<br/>HttpOnly cookie 保存 JWT"]
 
