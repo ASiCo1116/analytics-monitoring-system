@@ -6,7 +6,9 @@ from app.deps import CurrentUser, DbSession, client_ip, require_roles
 from app.models import Record, Role, User
 from app.schemas.common import Page
 from app.schemas.record import (
+    BatchDeleteResult,
     ImportResult,
+    RecordBatchDelete,
     RecordCreate,
     RecordListParams,
     RecordRead,
@@ -127,3 +129,32 @@ async def delete_record(
         user_id=user.id,
         ip_address=client_ip(request),
     )
+
+
+@router.post(
+    "/batch-delete",
+    response_model=BatchDeleteResult,
+    responses={
+        403: {
+            "description": "Viewer, or records created by someone else: "
+            "{detail: {message, ids}}; nothing is deleted"
+        },
+        404: {
+            "description": "Unknown ids: {detail: {message, ids}}; nothing "
+            "is deleted"
+        },
+    },
+)
+async def batch_delete_records(
+    data: RecordBatchDelete, request: Request, db: DbSession, user: Writer
+) -> BatchDeleteResult:
+    """Delete up to 100 records at once; all of them or none."""
+    deleted = await record_service.delete_records(db, data.ids, user)
+    await audit_service.log(
+        "record_batch_delete",
+        f"{user.username} deleted {deleted} records: "
+        f"{', '.join(map(str, data.ids))}",
+        user_id=user.id,
+        ip_address=client_ip(request),
+    )
+    return BatchDeleteResult(deleted=deleted)

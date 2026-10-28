@@ -85,9 +85,15 @@ def error_text(response: requests.Response) -> str:
     """A readable message for a failed call."""
     if response.status_code == 503:
         return "資料庫無法連線，請稍後再試。"
+    detail = _detail(response)
+    if isinstance(detail, dict) and "ids" in detail:
+        # Batch delete names the records it refused: {message, ids}
+        reason = {403: "權限不足", 404: "找不到記錄"}.get(
+            response.status_code, detail.get("message")
+        )
+        return f"{reason}：記錄 {', '.join(map(str, detail['ids']))}"
     if response.status_code == 403:
         return "權限不足，無法執行此操作。"
-    detail = _detail(response)
     if isinstance(detail, str):
         return detail
     if isinstance(detail, list):
