@@ -30,7 +30,7 @@
 
 ## 系統架構圖
 
-後端是單一 uvicorn 行程：REST API、WebSocket 推送、模擬器與批次寫入都在同一個行程內；前端在容器內呼叫後端，不經過瀏覽器。
+後端是單一 uvicorn 執行緒：REST API、WebSocket 推送、模擬器與批次寫入都在同一個執行緒內；前端在容器內呼叫後端，不經過瀏覽器。
 
 ```mermaid
 flowchart LR
@@ -124,9 +124,7 @@ sequenceDiagram
     end
 ```
 
-### 資料庫結構
-
-使用者 id 為 UUIDv7，其餘資料表使用自增整數主鍵；時間一律以 UTC 儲存，前端轉成 `APP_TIMEZONE`（預設 Asia/Taipei）顯示。
+### ER Diagram
 
 ```mermaid
 erDiagram
@@ -181,11 +179,11 @@ erDiagram
 
 | 層 | 技術 |
 |---|---|
-| 後端 | FastAPI、Pydantic v2、SQLAlchemy 2.1 async ORM（asyncmy driver）、Alembic、PyJWT + bcrypt、Uvicorn |
+| 後端 | Python 3.14、FastAPI、Pydantic v2、SQLAlchemy 2.1 async ORM（asyncmy driver）、Alembic、PyJWT + bcrypt、Uvicorn |
 | 前端 | Streamlit、Plotly、requests、websocket-client |
 | 資料庫 | MariaDB 11.7 |
-| 套件與環境 | [pixi](https://pixi.sh)（conda-forge 優先，缺少的從 PyPI），Python 3.14 |
-| 部署 | Docker 多階段建置、Docker Compose |
+| 套件管理 | [pixi](https://pixi.sh) |
+| 部署 | Docker、Docker Compose |
 | 測試 | pytest、pytest-asyncio、httpx |
 
 專案根目錄只有一份 `pixi.toml` / `pixi.lock`，以 environment 區分用途：
@@ -199,27 +197,40 @@ erDiagram
 
 ## Docker 部署
 
-需求：Docker 與 Docker Compose v2。
-
 ```bash
 cp .env.example .env          # 預設值可直接使用
 docker compose up -d --build
 ```
 
-| 服務 | 位址 |
-|---|---|
-| 前端 | http://localhost:8501 |
-| 後端 API | http://localhost:8000 |
-| Swagger 文件 | http://localhost:8000/docs |
+## 本地運行
 
-常用指令：
+需求：[pixi](https://pixi.sh/latest/#installation) 與 Docker（只用來跑資料庫）。以下指令都在專案根目錄執行，第一次執行時 pixi 會自動安裝對應的環境。
 
-```bash
-docker compose ps              # 查看服務狀態（三個服務都應為 healthy）
-docker compose logs -f backend # 查看後端日誌
-docker compose down            # 停止，保留資料
-docker compose down -v         # 停止並清除資料庫資料
-```
+1. 準備環境變數。本地與 Docker 共用同一份 `.env`；後端的 pixi task 會把資料庫主機 `DB_HOST` 設為 `localhost`，不需要另外修改：
+
+   ```bash
+   cp .env.example .env    # 若尚未建立
+   ```
+
+2. 只啟動資料庫容器：
+
+   ```bash
+   docker compose up -d db
+   ```
+
+3. 建立資料表、測試帳號，並啟動後端（http://localhost:8000/docs）：
+
+   ```bash
+   pixi run -e backend migrate
+   pixi run -e backend seed      # 測試帳號與範例資料（可重複執行）
+   pixi run -e backend dev
+   ```
+
+4. 另開一個終端機啟動前端（http://localhost:8501）。前端的 `dev` task 已把後端位址設為 `localhost:8000`：
+
+   ```bash
+   pixi run -e frontend dev
+   ```
 
 ## 測試帳號
 
@@ -259,49 +270,6 @@ docker compose down -v         # 停止並清除資料庫資料
 
 在 Swagger UI 按右上角 **Authorize**，輸入上面任一測試帳號的帳密，之後的請求會自動帶上 token。所有 API 前綴為 `/api/v1`，例如登入是 `POST /api/v1/auth/login`。
 
-## 執行測試
-
-後端測試在 Docker 中執行，使用獨立的 `db-test` 資料庫（資料只存在記憶體），不會影響正式資料：
-
-```bash
-cp .env.example .env    # 若尚未建立
-docker compose --profile test run --rm --build backend-test
-```
-
-- `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose rm -sf db-test` 停止並移除測試資料庫，不影響主系統（只 `stop` 會留下容器，之後主系統 `down` 時 network 被刪，下次測試會啟動失敗）。
-- 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
-- 開 PR 或推送新的 commit 到 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會執行 lint（`pixi run lint`）與上面的測試指令。
-
-
-## 本地運行
-
-需求：[pixi](https://pixi.sh/latest/#installation) 與 Docker（只用來跑資料庫）。以下指令都在專案根目錄執行，第一次執行時 pixi 會自動安裝對應的環境。
-
-1. 準備環境變數。本地與 Docker 共用同一份 `.env`；後端的 pixi task 會把資料庫主機 `DB_HOST` 設為 `localhost`，不需要另外修改：
-
-   ```bash
-   cp .env.example .env    # 若尚未建立
-   ```
-
-2. 只啟動資料庫容器：
-
-   ```bash
-   docker compose up -d db
-   ```
-
-3. 建立資料表、測試帳號，並啟動後端（http://localhost:8000/docs）：
-
-   ```bash
-   pixi run -e backend migrate
-   pixi run -e backend seed      # 測試帳號與範例資料（可重複執行）
-   pixi run -e backend dev
-   ```
-
-4. 另開一個終端機啟動前端（http://localhost:8501）。前端的 `dev` task 已把後端位址設為 `localhost:8000`：
-
-   ```bash
-   pixi run -e frontend dev
-   ```
 
 ## 專案結構
 
@@ -334,11 +302,9 @@ docker compose --profile test run --rm --build backend-test
 └── .env.example
 ```
 
-完整的設計決策（時區規則、API 一覽、批次寫入與 WebSocket 認證的細節等）見 [design.md](openspec/changes/archive/2026-10-28-realtime-analytics-monitoring-system/design.md)。
-
 ## 已知限制與改進方向
 
-- **單一後端行程，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 行程內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
+- **單一後端執行緒，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 執行緒內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
 - **登入保存在 HttpOnly cookie，有效期與 token 相同**（預設 60 分鐘）：重新整理或開新分頁會自動恢復登入，到期後需重新登入。在一個分頁登出時，同一瀏覽器的其他分頁要到重新整理或下一次操作時才會登出。前端只能有一個實例（登入時交換 cookie 的一次性票證存在記憶體中）。經由 HTTPS 存取時 cookie 會加上 Secure；若放在反向代理後面，需要讓 Streamlit 信任 `X-Forwarded-Proto`。
 - **WebSocket 連線後 token 過期仍會繼續推送**：token 只在連線時檢查；推送內容是非敏感的模擬資料。斷線重連時會重新檢查，過期就登出。
 - **每個瀏覽器分頁一條 WebSocket 接收執行緒**：直接關閉分頁時執行緒不會立刻結束，超過 10 分鐘沒有使用才會自行關閉。
