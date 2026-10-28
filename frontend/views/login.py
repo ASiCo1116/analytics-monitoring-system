@@ -4,8 +4,10 @@ from lib import api, session
 
 st.title("Analytics Monitoring System")
 
-if notice := st.session_state.pop("notice", None):
-    st.warning(notice)
+# Set by /session/end when the login expired or the account was disabled
+if st.query_params.get("expired"):
+    st.warning(session.EXPIRED_MESSAGE)
+    del st.query_params["expired"]
 
 login_tab, register_tab = st.tabs(["登入", "註冊"])
 
@@ -15,12 +17,8 @@ with login_tab, st.form("login"):
     if st.form_submit_button("登入", type="primary"):
         response = api.login(username, password)
         if response.status_code == 200:
-            access_token = response.json()["access_token"]
-            me = api.me(access_token)
-            if me.status_code == 200:
-                session.start(access_token, me.json())
-                st.rerun()
-            st.error(api.error_text(me))
+            # The page reloads and logs in from the cookie
+            session.login(response.json()["access_token"])
         elif response.status_code == 401:
             st.error("帳號或密碼錯誤")
         elif response.status_code == 403:

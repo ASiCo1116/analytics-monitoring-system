@@ -2,7 +2,8 @@
 
 import streamlit as st
 
-from lib import session
+from lib import api, session
+from lib.login_cookie import COOKIE_NAME
 
 st.set_page_config(page_title="Analytics Monitoring System", layout="wide")
 
@@ -12,6 +13,28 @@ if session.logged_in():
     # The WebSocket was refused (1008): the login is no longer valid
     if live.auth_failed:
         session.end(expired=True)
+
+# A logout or an expired login: delete the cookie
+session.leave_if_ended()
+
+# A refresh or a new tab is a new session: log in again from the cookie,
+# checked once per session
+saved_token = st.context.cookies.get(COOKIE_NAME)
+if (
+    saved_token
+    and not session.logged_in()
+    and "cookie_checked" not in st.session_state
+):
+    st.session_state.cookie_checked = True
+    me = api.me(saved_token)
+    if me.status_code == 200:
+        session.start(saved_token, me.json())
+    elif api.ends_login(me):
+        session.end(expired=True)
+        session.leave_if_ended()
+    else:
+        # Backend trouble: keep the cookie, a later refresh can retry
+        st.error(api.error_text(me))
 
 if not session.logged_in():
     page = st.navigation(

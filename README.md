@@ -16,12 +16,13 @@
 
 ```mermaid
 flowchart LR
-    browser["👤 瀏覽器"]
+    browser["👤 瀏覽器<br/>HttpOnly cookie 保存 JWT"]
 
     subgraph net["Docker network: app-net"]
         direction LR
         subgraph fe["frontend 容器 :8501"]
             st["Streamlit 多頁面應用<br/>session_state 存 JWT"]
+            routes["登入 cookie 路由<br/>/session/start、/session/end"]
             wsc["WebSocket 接收執行緒<br/>（每個使用者 session 一條）"]
         end
 
@@ -40,6 +41,7 @@ flowchart LR
     vol[("volume: db_data")]
 
     browser -- "HTTP :8501" --> st
+    browser -- "設定／清除 cookie" --> routes
     browser -. "Swagger :8000/docs" .-> api
     st -- "REST (requests)" --> api
     wsc <-- "WebSocket" --> wsr
@@ -48,6 +50,34 @@ flowchart LR
     api -- "SQLAlchemy async ORM<br/>asyncmy + 連線池" --> db
     writer -- "ORM 批次寫入" --> db
     db --- vol
+```
+
+### 登入流程
+
+Streamlit 程式無法直接寫 cookie，所以登入成功後先把 token 存在記憶體並發一張一次性票證，再讓瀏覽器到前端伺服器的 `/session/start` 換成 HttpOnly cookie；token 不會出現在網址上。之後重新整理或開新分頁，都會從 cookie 恢復登入。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 瀏覽器
+    participant S as Streamlit 程式
+    participant R as /session/* 路由
+    participant B as 後端 API
+
+    U->>S: 送出帳號密碼
+    S->>B: POST /auth/login
+    B-->>S: JWT
+    S->>S: 存入一次性票證（30 秒）
+    S-->>U: 導向 /session/start?ticket=…
+    U->>R: GET /session/start?ticket=…
+    R-->>U: 303 → /，Set-Cookie（HttpOnly、SameSite=Lax）
+    U->>S: 新的 session（重新整理、開新分頁也一樣），帶著 cookie
+    S->>B: GET /users/me
+    alt 200
+        B-->>S: 使用者資料 → 恢復登入
+    else 401／帳號停用
+        S-->>U: 導向 /session/end?expired=1，清除 cookie 並顯示過期提示
+    end
 ```
 
 ### 即時資料流
@@ -274,6 +304,7 @@ docker compose --profile test run --rm --build backend-test
 │   ├── alembic/         # 資料庫遷移
 │   └── tests/
 ├── frontend/
+│   ├── server.py        # 啟動入口：app.py 加上設定／清除登入 cookie 的路由
 │   ├── app.py           # 依登入狀態與角色組出頁面
 │   ├── views/           # 登入、即時監控、資料記錄、資料分析、系統管理
 │   └── lib/             # API 呼叫、WebSocket 接收執行緒、圖表、共用元件
@@ -290,7 +321,7 @@ docker compose --profile test run --rm --build backend-test
 ## 已知限制與改進方向
 
 - **單一後端行程，無法水平擴展**：模擬器、WebSocket 廣播與批次寫入都在同一個 uvicorn 行程內，多開 worker 會產生多份模擬資料。改進方向：模擬器獨立成服務，透過 Redis Pub/Sub 推送給多個後端。
-- **重新整理瀏覽器頁面需要重新登入**：token 只存在 Streamlit 的 session，不存 cookie。
+- **登入保存在 HttpOnly cookie，有效期與 token 相同**（預設 60 分鐘）：重新整理或開新分頁會自動恢復登入，到期後需重新登入。在一個分頁登出時，同一瀏覽器的其他分頁要到重新整理或下一次操作時才會登出。前端只能有一個實例（登入時交換 cookie 的一次性票證存在記憶體中）。經由 HTTPS 存取時 cookie 會加上 Secure；若放在反向代理後面，需要讓 Streamlit 信任 `X-Forwarded-Proto`。
 - **WebSocket 連線後 token 過期仍會繼續推送**：token 只在連線時檢查；推送內容是非敏感的模擬資料。斷線重連時會重新檢查，過期就登出。
 - **每個瀏覽器分頁一條 WebSocket 接收執行緒**：直接關閉分頁時執行緒不會立刻結束，超過 10 分鐘沒有使用才會自行關閉。
 - **metrics 資料沒有清理機制**：預設每天約 78 萬筆。分析預設只查最近 24 小時、Excel 明細最多 10,000 筆，但資料庫狀態頁以 `COUNT(*)` 計算各表筆數，長期累積後會變慢。改進方向：定期刪除或彙總舊資料、筆數改用近似值。
