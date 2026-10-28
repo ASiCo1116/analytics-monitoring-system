@@ -1,0 +1,48 @@
+"""Entry point: picks the pages for the current login and role."""
+
+import streamlit as st
+
+from lib import session
+
+st.set_page_config(page_title="Analytics Monitoring System", layout="wide")
+
+if session.logged_in():
+    live = session.listener()
+    live.touch()
+    # The WebSocket was refused (1008): the login is no longer valid
+    if live.auth_failed:
+        session.end(expired=True)
+
+if not session.logged_in():
+    page = st.navigation(
+        [st.Page("views/login.py", title="登入", icon=":material/login:")]
+    )
+else:
+    pages = [
+        st.Page(
+            "views/monitor.py", title="即時監控", icon=":material/monitoring:"
+        ),
+        st.Page("views/records.py", title="資料記錄", icon=":material/table:"),
+        st.Page(
+            "views/analytics.py", title="資料分析", icon=":material/analytics:"
+        ),
+    ]
+    if session.is_role("admin"):
+        pages.append(
+            st.Page(
+                "views/admin.py",
+                title="系統管理",
+                icon=":material/admin_panel_settings:",
+            )
+        )
+    page = st.navigation(pages)
+
+    me = session.user()
+    with st.sidebar:
+        st.markdown(f"**{me['username']}**")
+        st.caption(f"角色：{session.ROLE_LABELS[me['role']]}")
+        if st.button("登出", icon=":material/logout:"):
+            session.end()
+            st.rerun()
+
+page.run()

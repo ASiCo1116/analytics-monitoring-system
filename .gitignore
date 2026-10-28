@@ -1,0 +1,11 @@
+# Environment
+.env
+.pixi/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local tooling
+.superpowers/

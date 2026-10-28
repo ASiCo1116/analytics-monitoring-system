@@ -1,0 +1,38 @@
+name: CI
+
+# Every pull request: when it is opened, reopened, and on each new push to it
+on:
+  pull_request:
+
+# A newer push to the same pull request cancels the run still in progress
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: prefix-dev/setup-pixi@v0.11.0
+        with:
+          # Same pixi version as the Dockerfiles
+          pixi-version: v0.63.2
+          environments: lint
+      - run: pixi run lint
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # The command from the README: tests run in the backend-test container
+      # against a throwaway MariaDB (db-test), configured by .env.example
+      - run: cp .env.example .env
+      - run: docker compose --profile test run --rm --build backend-test

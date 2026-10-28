@@ -255,12 +255,17 @@ erDiagram
 │   ├── app.py                 # st.navigation：依登入狀態與角色決定頁面；側邊欄使用者與登出
 │   ├── views/                 # login.py, monitor.py, records.py, analytics.py, admin.py
 │   ├── lib/
+│   │   ├── config.py          # 讀環境變數：BACKEND_URL、BACKEND_WS_URL、APP_TIMEZONE
+│   │   ├── session.py         # 登入狀態（token、使用者、listener）的建立與清除
 │   │   ├── api.py             # requests 包裝：自動帶 token、401 時清除登入狀態
 │   │   ├── ws_listener.py     # 背景執行緒接 WebSocket，寫入 deque
-│   │   └── charts.py          # Plotly 圖表函式
+│   │   ├── charts.py          # Plotly 圖表函式
+│   │   ├── fmt.py             # API 的 UTC 時間與 APP_TIMEZONE 互轉
+│   │   └── widgets.py         # 共用的分頁元件
 │   └── Dockerfile
 ├── sample_data/records.csv     # 約 50 筆，可直接用來測試匯入
 ├── pixi.toml / pixi.lock      # 前後端共用：features、environments（backend / backend-prod / frontend）、tasks
+├── .github/workflows/ci.yml   # PR 時執行 lint 與單元測試
 ├── .dockerignore
 ├── docker-compose.yml
 ├── .env.example
@@ -313,10 +318,10 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | GET | `/api/v1/records/{id}` | 登入 | 單筆 |
 | PATCH | `/api/v1/records/{id}` | 建立者/Admin | 部分更新 |
 | DELETE | `/api/v1/records/{id}` | 建立者/Admin | 刪除，204 |
-| POST | `/api/v1/records/import` | Admin/User | multipart 上傳 CSV/JSON，201 `{imported}` 或 422 `{errors:[{row, field, message}]}` |
+| POST | `/api/v1/records/import` | Admin/User | multipart 上傳 CSV/JSON，201 `{imported}` 或 422 `{detail: {errors:[{row, field, message}]}}`（外層沿用統一的 `detail` 格式；整個檔案的問題以 row 0 表示） |
 | GET | `/api/v1/analytics/summary` | 登入 | `source, start, end, category \| metric, server` |
 | GET | `/api/v1/analytics/groups` | 登入 | 同上，records 依分類、metrics 依伺服器 |
-| GET | `/api/v1/analytics/trend` | 登入 | 同上 + `interval=minute\|hour\|day` |
+| GET | `/api/v1/analytics/trend` | 登入 | 同上 + `interval=minute\|hour\|day`（預設 hour）；`bucket` 為區間起點，以 UTC 回傳 |
 | GET | `/api/v1/analytics/export` | 登入 | 同上，回傳 .xlsx |
 | GET | `/api/v1/metrics` | Admin | 即時資料歷史：`server, metric, start, end, anomaly_only, page, page_size` |
 | GET | `/api/v1/admin/users` | Admin | 使用者列表：`role, is_active, q, page, page_size` |
@@ -325,6 +330,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 | GET | `/api/v1/admin/db-status` | Admin | 資料庫狀態 |
 | WS | `/ws/metrics?token=<JWT>` | 登入 | 每秒推送 |
 
+- 分析 API 的 `sum`、`avg` 四捨五入到小數 4 位，去掉 DOUBLE 加總的浮點誤差。source=metrics 沒給 `start` 時，查詢 `end`（未給則為現在）之前 24 小時。
 - 分頁回應統一：`{"items": [...], "total": 123, "page": 1, "page_size": 20}`。
 - 即時資料歷史放在 `/api/v1/metrics`（資源名稱）而不是 `/admin/...`，權限由 dependency 控制；未來若要開放給其他角色只需改權限。
 - 錯誤格式沿用 FastAPI 預設 `{"detail": ...}`；422 驗證錯誤用預設格式；全域攔截未處理例外 → 記 logger.exception 與 system_logs（`server_error`），回 500 `{"detail": "Internal server error"}`，不洩漏堆疊。
@@ -332,8 +338,8 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 ### 6. 即時資料：單一行程內的三個元件
 
 - **simulator**：每台伺服器每個指標保存「目前值」，每秒加上小幅隨機變動（隨機漫步）並限制在範圍內；另有約 1% 機率產生尖峰（直接拉到閾值以上），讓使用者幾分鐘內就看得到告警。用 `asyncio.sleep(1)` 迴圈。
-- **ConnectionManager**：保存已接受的 WebSocket 清單；`broadcast` 對每個連線 `send_json`，失敗的連線移除，不影響其他人。
-- **MetricBuffer + 批次寫入任務**：`add()` 把資料放進 list，若筆數 ≥ `BATCH_SIZE` 就 `set()` 一個 `asyncio.Event`；寫入任務用 `asyncio.wait_for(event.wait(), timeout=BATCH_INTERVAL_SECONDS)` 等待，醒來（不論 event 或 timeout）先 `event.clear()`；暫存區為空就跳過（不寫入、不更新上次寫入資訊），否則取出全部、`add_all` 後 commit，並記下「上次寫入時間／筆數／原因（interval 或 size）」給資料庫狀態 API。寫入失敗把資料放回最前面（超過 10,000 筆丟最舊的），並在下一次嘗試前固定等滿一個 `BATCH_INTERVAL_SECONDS`，這段期間不因筆數條件提早喚醒，避免資料庫故障時每秒重試；失敗事件照常交給 `audit_service`（資料庫連不上時它只會記到 stdout）。
+- **ConnectionManager**：保存已接受的 WebSocket 清單；`broadcast` 同時對所有連線 `send_json`（每個連線最多等 2 秒），失敗或逾時的連線移除，一個卡住的客戶端不會拖慢其他人。
+- **MetricBuffer + 批次寫入任務**：`add()` 把資料放進 list，若筆數 ≥ `BATCH_SIZE` 就 `set()` 一個 `asyncio.Event`；寫入任務用 `asyncio.wait_for(event.wait(), timeout=BATCH_INTERVAL_SECONDS)` 等待，醒來（不論 event 或 timeout）先 `event.clear()`；暫存區為空就跳過（不寫入、不更新上次寫入資訊），否則取出全部、`add_all` 後 commit，並記下「上次寫入時間／筆數／原因（interval 或 size）」給資料庫狀態 API。寫入失敗把資料放回最前面（超過 10,000 筆丟最舊的），並在下一次嘗試前固定等滿一個 `BATCH_INTERVAL_SECONDS`，這段期間不因筆數條件提早喚醒，避免資料庫故障時每秒重試；失敗事件照常交給 `audit_service`（資料庫連不上時它只會在 stdout 記一行 ERROR，不印堆疊，避免每次重試都刷出整段 traceback）。
 - 三者都在 FastAPI `lifespan` 中以 `asyncio.create_task` 啟動；關閉時先取消模擬器與寫入任務，再直接執行最後一次 flush，避免與寫入任務同時寫入。
 - 預設值說明：每秒 9 筆，10 秒約 90 筆，所以預設下通常是「定期」觸發；把伺服器數調多或 `BATCH_SIZE` 調小就會看到「條件」觸發。兩條路徑都有單元測試（以小數值設定驗證）。
 
@@ -341,17 +347,20 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 ### 7. WebSocket 認證用 query 參數帶 token
 
-`/ws/metrics?token=...`，**先 `accept()` 再驗證**，失敗以 `close(code=1008)` 關閉。依 ASGI 規格，在 `accept()` 前關閉連線時伺服器會以 HTTP 403 拒絕握手，客戶端讀不到 close code；Starlette 的 TestClient 卻會模擬成 1008，測試會通過但實際行為不同。先 accept 才能讓前端確實收到 1008 並執行登出流程。瀏覽器原生 WebSocket 無法自訂 header，query 參數是 FastAPI 官方文件示範的做法，也方便用瀏覽器工具測試。連線建立後 token 過期不會中斷連線（可接受，記於 Risks）。
+`/ws/metrics?token=...`，**先 `accept()` 再驗證**，失敗以 `close(code=1008)` 關閉。依 ASGI 規格，在 `accept()` 前關閉連線時伺服器會以 HTTP 403 拒絕握手，客戶端讀不到 close code；Starlette 的 TestClient 卻會模擬成 1008，測試會通過但實際行為不同。先 accept 才能讓前端確實收到 1008 並執行登出流程。瀏覽器原生 WebSocket 無法自訂 header，query 參數是 FastAPI 官方文件示範的做法，也方便用瀏覽器工具測試。驗證時若資料庫連不上，改以 1011 關閉，前端視為暫時錯誤並重連，不會登出。連線建立後 token 過期不會中斷連線（可接受，記於 Risks）。
+
+Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日誌，因此在 `uvicorn.error` logger 加上過濾器，把 `token=` 後面的值換成 `***`，token 不會出現在日誌中。
 
 ### 8. Streamlit 前端
 
 - **導覽**：`st.navigation` + `st.Page`。未登入只註冊登入頁；登入後依角色組出頁面清單（Admin 多一個系統管理）。
 - **Session**：`st.session_state` 存 `token`、`user`（me API 結果）、`ws_listener`。`lib/api.py` 統一加 Authorization header；遇到 401，或 `detail == "Inactive user"` 的 403，就清除 session 並 `st.rerun()` 回登入頁（後端以固定的 detail 字串區分「帳號停用」與「權限不足」）。ws_listener 收到 close code 1008 時停止重連並設一個旗標，即時監控頁看到旗標就執行同樣的登出流程。
-- **即時接收**：`websocket-client` 的 `WebSocketApp.run_forever(reconnect=3)` 跑在 daemon 執行緒中，收到訊息就 append 到 `collections.deque(maxlen=60)`（最近 60 秒）與告警 `deque(maxlen=20)`。deque 的 append 是執行緒安全的，執行緒不碰 `st.session_state`（Streamlit 不允許其他執行緒存取 session）。listener 物件存在 session_state，所以切換頁面資料不會消失；登出時呼叫 `close()` 停止。
+- **即時接收**：`websocket-client` 的 `WebSocketApp.run_forever()` 跑在 daemon 執行緒中，外面包一層自己的重連迴圈（連線結束後等 3 秒再連；不用 `run_forever(reconnect=3)`，因為內建重連收到關閉訊框時直接重連，不會回報 close code，無法辨識 1008），收到訊息就 append 到 `collections.deque(maxlen=60)`（最近 60 秒）與告警 `deque(maxlen=20)`。deque 的 append 是執行緒安全的，執行緒不碰 `st.session_state`（Streamlit 不允許其他執行緒存取 session）。listener 物件存在 session_state，所以切換頁面資料不會消失；登出時呼叫 `close()` 停止。
 - **自動刷新**：即時監控頁的圖表區包在 `@st.fragment(run_every=1)` 中，只重繪這一區，不會整頁閃爍。
 - **圖表**：Plotly（`st.plotly_chart`），因為內建 `st.line_chart` 無法把異常點標紅、畫閾值線。
 - **HTTP**：前端用同步 `requests`（Streamlit 腳本本身是同步的），後端位址取自 `BACKEND_URL=http://backend:8000`；前端是在容器內呼叫後端，不經過瀏覽器，所以**不需要 CORS**。
-- **Excel 下載**：前端呼叫匯出 API 取得 bytes，交給 `st.download_button`。
+- **Excel 下載**：分兩步。按「準備 Excel 檔」時才呼叫匯出 API 取得 bytes，再顯示 `st.download_button`；檔案與當時的篩選條件綁在一起，條件改變就要重新準備。避免每次頁面重跑都產生一次檔案，也讓 401 能走統一的登出流程（`download_button` 的延遲產生函式無法 `st.rerun`）。
+- **時間輸入**：日期篩選的「結束日期」在畫面上包含當天，送出時轉成隔天 00:00（API 的 end 不含）；時間不帶時區送出，由後端視為 `APP_TIMEZONE`。
 
 ### 9. CSV/JSON 匯入
 
@@ -359,7 +368,7 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 ### 10. Excel 匯出
 
-用 `openpyxl` 建立四個工作表（摘要、分組聚合、趨勢（依小時）、明細），寫入 `BytesIO` 後以 `StreamingResponse` 回傳，`Content-Disposition` 檔名如 `analytics_records_20261027_1530.xlsx`。查詢重用 analytics service 的函式，確保與畫面數字一致。
+用 `openpyxl` 建立四個工作表（摘要、分組聚合、趨勢（依小時）、明細），寫入 `BytesIO` 後以 `Response` 回傳，`Content-Disposition` 檔名如 `analytics_records_20261027_1530.xlsx`。查詢重用 analytics service 的函式，確保與畫面數字一致。產生活頁簿是 CPU 工作，以 `asyncio.to_thread` 在執行緒中執行，避免卡住模擬器與 WebSocket 推送。Excel 不支援時區，工作表中的時間一律轉成 `APP_TIMEZONE` 的當地時間，並在摘要工作表註明時區。
 
 ### 11. 日誌：兩層
 
@@ -368,15 +377,17 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 
 ### 12. Docker
 
-- **多階段 Dockerfile**（`backend/Dockerfile`、`frontend/Dockerfile`）：因為 `pixi.toml` 在根目錄，build context 是專案根目錄（compose 以 `context: .` 加 `dockerfile:` 指定），根目錄的 `.dockerignore` 排除 `.pixi/`、`.git/`、`.env`、`openspec/` 等。`build` 階段使用官方 pixi 映像（`ghcr.io/prefix-dev/pixi`，固定版本），先只複製 `pixi.toml`、`pixi.lock` 再執行 `pixi install --locked -e <環境>`（後端 `backend-prod`、前端 `frontend`），依賴沒變時可沿用快取層；`build` 階段另以 `pixi shell-hook -e <環境> -s bash` 產生環境啟用腳本。`runtime` 階段以 `debian:bookworm-slim` 為基底，只把 `.pixi/envs/<環境>` 與各自的程式碼資料夾複製到**相同路徑**（conda 環境內含絕對路徑前綴，換路徑會失效），連同啟用腳本與程式碼一起複製，以非 root 使用者執行。`entrypoint.sh` 先 `source` 啟用腳本再執行指令（pixi 官方 container 做法，讓 `PATH`、`CONDA_PREFIX` 與套件的 activation 設定都生效）；另外把環境的 `bin` 加進映像的 `PATH`，供 compose healthcheck 這類不經 entrypoint 的指令使用。Python 直譯器本身也來自該環境，映像不含 pixi 與編譯器。
+- **多階段 Dockerfile**（`backend/Dockerfile`、`frontend/Dockerfile`）：因為 `pixi.toml` 在根目錄，build context 是專案根目錄（compose 以 `context: .` 加 `dockerfile:` 指定），根目錄的 `.dockerignore` 排除 `.pixi/`、`.git/`、`.env`、`openspec/` 等。`build` 階段使用官方 pixi 映像（`ghcr.io/prefix-dev/pixi`，固定版本），先只複製 `pixi.toml`、`pixi.lock` 再執行 `pixi install --locked -e <環境>`（後端 `backend-prod`、前端 `frontend`），依賴沒變時可沿用快取層；`build` 階段另以 `pixi shell-hook -e <環境> -s bash` 產生環境啟用腳本。`runtime` 階段以 `debian:trixie-slim`（Debian 13）為基底，只把 `.pixi/envs/<環境>` 與各自的程式碼資料夾複製到**相同路徑**（conda 環境內含絕對路徑前綴，換路徑會失效），連同啟用腳本與程式碼一起複製，以非 root 使用者執行。`entrypoint.sh` 先 `source` 啟用腳本再執行指令（pixi 官方 container 做法，讓 `PATH`、`CONDA_PREFIX` 與套件的 activation 設定都生效）；另外把環境的 `bin` 加進映像的 `PATH`，供 compose healthcheck 這類不經 entrypoint 的指令使用。Python 直譯器本身也來自該環境，映像不含 pixi 與編譯器。
 - 後端 Dockerfile 另有 `test` 階段：以 `build` 階段為基礎執行 `pixi install --locked -e backend`（含測試套件），供 `backend-test` 服務使用。
 - **docker-compose.yml**：
   - `db`：`mariadb:11.7`，volume `db_data:/var/lib/mysql`，對主機開放 `3306` 供本地開發連線，healthcheck 用映像內建 `healthcheck.sh --connect --innodb_initialized`。
-  - `backend`：`depends_on: db (service_healthy)`，port 8000，healthcheck 以 `python -c` 呼叫 `/health`（slim 映像沒有 curl）。
-  - `frontend`：`depends_on: backend (service_healthy)`，port 8501。
+  - `backend`：`env_file: .env`，`depends_on: db (service_healthy)`，port 8000，healthcheck 以 `python -c` 呼叫 `/health`（slim 映像沒有 curl）。
+  - `frontend`：`env_file: .env`，`depends_on: backend (service_healthy)`，port 8501，healthcheck 以 `python -c` 呼叫 Streamlit 內建的 `/_stcore/health`。
+  - Compose 讀取根目錄 `.env` 只用於替換 compose 檔中的 `${...}`，不會自動傳進容器，所以 backend 與 frontend 要以 `env_file` 注入；`db` 以 `environment` 明確列出四個 `MARIADB_*` 變數。
   - `db-test` 與 `backend-test`：放在 `profiles: ["test"]`，平常不啟動；`backend-test` 以後端 Dockerfile 的 `test` target 建置，執行 `pixi run -e backend test`；`db-test` 是另一個 MariaDB 容器（無 volume），讓測試不碰正式資料，也不需要用 SQL 腳本建第二個資料庫。
   - 全部在 `app-net` 網路，服務間以服務名稱互連（`db:3306`、`backend:8000`）。
 - **測試指令**：`docker compose --profile test run --rm backend-test`，測試以 `Base.metadata.create_all/drop_all` 建立與清除資料表，並將模擬器設為停用。
+- **CI**：`.github/workflows/ci.yml` 在 pull request 開啟、重新開啟或推送新 commit 時執行兩個 job。`lint` 以 `prefix-dev/setup-pixi`（pixi 版本與 Dockerfile 相同）安裝 `lint` 環境後執行 `pixi run lint`；`test` 執行與本地相同的 `cp .env.example .env` 與 `docker compose --profile test run --rm --build backend-test`。測試沿用 compose 的 `db-test`，不在 workflow 另外設定資料庫，本地與 CI 的測試環境完全一致；代價是每次執行都要建置測試映像。同一個 PR 有新的推送時，會取消還在執行的舊流程。
 
 ### 13. 環境變數（`.env.example`）
 
@@ -384,8 +395,8 @@ router 只負責 HTTP（解析參數、呼叫 service、回傳），商業邏輯
 |---|---|---|
 | `MARIADB_ROOT_PASSWORD` | `rootpass` | MariaDB root 密碼 |
 | `MARIADB_DATABASE` / `MARIADB_USER` / `MARIADB_PASSWORD` | `analytics` / `app` / `apppass` | 應用程式資料庫與帳號 |
-| `DATABASE_URL` | `mysql+asyncmy://app:apppass@db:3306/analytics` | 後端連線字串 |
-| `JWT_SECRET_KEY` | `change-me-in-production` | JWT 簽章密鑰 |
+| `DB_HOST` / `DB_PORT` | `db` / `3306` | 後端連線的資料庫主機與埠；帳號、密碼、資料庫名稱沿用上面的 `MARIADB_*`，連線字串由 `Settings.database_url` 以 SQLAlchemy `URL.create` 組成（密碼中的特殊字元會自動跳脫） |
+| `JWT_SECRET_KEY` | `change-me-in-production-at-least-32-bytes` | JWT 簽章密鑰（HS256 建議至少 32 bytes） |
 | `JWT_EXPIRE_MINUTES` | `60` | Token 有效期 |
 | `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` / `SEED_VIEWER_PASSWORD` | `Admin@1234` / `User@1234` / `Viewer@1234` | 測試帳號密碼 |
 | `SIMULATOR_ENABLED` | `true` | 模擬器開關 |
@@ -425,23 +436,26 @@ pytest + pytest-asyncio + httpx `AsyncClient(transport=ASGITransport(app))`，�
   | `backend` | backend + test | 本地開發、測試容器 | `backend` |
   | `backend-prod` | backend | 後端 Docker runtime | `backend` |
   | `frontend` | frontend | 本地開發、前端 Docker runtime | `frontend` |
+  | `lint` | lint（只有 ruff，不含 Python 預設依賴） | 程式碼檢查與格式化 | — |
 
   `backend` 與 `backend-prod` 同一個 solve-group，共同套件的版本完全相同。前端使用獨立的 solve-group，前端套件的版本限制不會影響後端。預設環境只含 Python，不直接使用。
+- 程式碼風格：ruff，設定在根目錄 `ruff.toml`（`line-length = 80`，lint 規則在預設之外加上 E501 與 import 排序），以 `pixi run lint`、`pixi run format` 執行。ruff 放在獨立的 `lint` 環境，不會進入任何執行用的映像。
 - 常用指令定義為各 feature 的 pixi tasks，並設定 `cwd`（後端 task 在 `backend/` 執行，前端在 `frontend/`），一律以 `-e` 指定環境執行，例如 `pixi run -e backend dev`、`pixi run -e frontend dev`。README 與測試容器都使用這些 task。runtime 映像不含 pixi，所以 `entrypoint.sh` 直接執行與 task 相同的指令（`alembic upgrade head`、`python -m app.seed`、`uvicorn`）：
   - 後端（`backend` feature）：`dev`（`uvicorn app.main:app --reload`）、`migrate`（`alembic upgrade head`）、`seed`（`python -m app.seed`）；`test` feature：`test`（`pytest`）
   - 前端（`frontend` feature）：`dev`（`streamlit run app.py`，task 的 `env` 設定 `BACKEND_URL=http://localhost:8000`、`BACKEND_WS_URL=ws://localhost:8000`）
-- 本地運行（皆在專案根目錄執行）：`docker compose up -d db` 只啟動資料庫 → `pixi run -e backend migrate`、`pixi run -e backend seed`、`pixi run -e backend dev` → 另開終端機執行 `pixi run -e frontend dev`。第一次執行時 pixi 會自動安裝對應環境。本地執行時 `DATABASE_URL` 要指向 `localhost:3306`，`BACKEND_URL`／`BACKEND_WS_URL` 要指向 `localhost:8000`。
-- 本地的環境變數：後端以 pydantic-settings 讀取 `env_file=("../.env", ".env")`，後面的檔案優先。根目錄 `.env` 是 Docker Compose 與本地共用的設定；`backend/.env`（不進版控）只覆寫本地需要不同的值，例如 `DATABASE_URL=mysql+asyncmy://app:apppass@localhost:3306/analytics`。容器內不讀這兩個檔案，由 compose 的 `env_file` 注入。前端只需要後端位址，由 `dev` task 的 `env` 提供。
+- 本地運行（皆在專案根目錄執行）：`docker compose up -d db` 只啟動資料庫 → `pixi run -e backend migrate`、`pixi run -e backend seed`、`pixi run -e backend dev` → 另開終端機執行 `pixi run -e frontend dev`。第一次執行時 pixi 會自動安裝對應環境。本地執行時資料庫主機是 `localhost`，`BACKEND_URL`／`BACKEND_WS_URL` 要指向 `localhost:8000`。
+- 本地的環境變數：只有根目錄一份 `.env`，Docker Compose 與本地共用。後端以 pydantic-settings 讀取 `env_file="../.env"`（後端 task 的 `cwd` 是 `backend/`），環境變數優先於檔案。兩邊唯一不同的是資料庫主機：`.env` 寫 Docker 用的 `DB_HOST=db`，後端的 `dev`、`migrate`、`seed` task 以 `env` 設定 `DB_HOST=localhost`；前端同樣由 `dev` task 的 `env` 提供 `localhost` 的後端位址。容器內沒有這個檔案，由 compose 的 `env_file` 注入；測試容器以 `environment` 覆寫 `DB_HOST=db-test`、`MARIADB_DATABASE=analytics_test`。
 - 選 pixi 的原因：一份 lock 同時鎖定 Python 直譯器與所有套件，本地與容器一致；asyncmy、bcrypt 等含 C 擴充的套件直接取得預編譯版本（conda-forge 套件或 PyPI wheel），build 階段通常不需要安裝編譯工具。替代方案 pip + `requirements.txt` 沒有完整的鎖定檔，且需另外管理 Python 版本。
 - 選單一份 `pixi.toml` 而非前後端各一份：只有一處設定 Python 版本、channel 與 platforms，一次 `pixi install` 就準備好所有環境，一份 lock 涵蓋整個專案。代價是 Docker build context 變成整個專案根目錄，且任一端修改依賴都會改動 `pixi.lock`，讓另一端的依賴快取層也失效重建；以本專案的規模可接受。
 
 ## Risks / Trade-offs
 
 - [單一 worker：模擬器與廣播在行程內，無法水平擴展] → 刻意的取捨，README 註明；改進方向是獨立模擬器 + Redis Pub/Sub。
-- [Streamlit 每個使用者 session 一條 WebSocket 執行緒，session 意外結束（關分頁）時執行緒可能殘留] → 使用 daemon 執行緒；目前規模可接受，README 註明。
+- [Streamlit 每個使用者 session 一條 WebSocket 執行緒，session 意外結束（關分頁）時執行緒可能殘留] → 使用 daemon 執行緒；每次頁面執行都會更新 listener 的最後使用時間，超過 10 分鐘沒有使用就自行關閉；README 註明。
 - [Streamlit 重新整理瀏覽器就會登出] → spec 未要求，記為已知限制；比把 token 存在 cookie／query string 安全也簡單。
 - [WebSocket 連線後 token 過期仍持續推送] → 推送內容為非敏感的模擬資料，可接受。
 - [metrics 每天約 77 萬筆，長時間運作後查詢變慢] → 已建複合索引；分析預設最近 24 小時；Excel 明細上限 10,000 筆；資料清理排程列為非目標。
+- [資料庫狀態 API 以 `COUNT(*)` 計算各表精確筆數，metrics 累積到數千萬筆後這支 API 會變慢（InnoDB 沒有現成的精確筆數）] → 目前規模可接受；若成為問題，改用 `information_schema.TABLES.TABLE_ROWS` 的近似值或加上快取。
 - [`func.date_format` 綁定 MariaDB/MySQL] → 資料庫已選定 MariaDB，可接受；測試也用 MariaDB 而非 SQLite，避免方言差異。
 - [users 主鍵改為 16 bytes 的 UUID，主鍵與外鍵索引比 BIGINT 大] → 使用者數量少，影響可忽略；UUIDv7 時間有序，避免隨機寫入。
 - [時間時區混淆] → 統一資料庫存 UTC、API 回 ISO 8601 帶 Z、只在前端轉換。

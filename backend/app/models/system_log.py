@@ -1,0 +1,42 @@
+import uuid
+from datetime import datetime
+from enum import StrEnum
+
+from sqlalchemy import BigInteger, Enum, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.base import Base, utc_now
+from app.models.user import User
+
+
+class LogLevel(StrEnum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
+class SystemLog(Base):
+    """Audit event (login, record changes, role changes, errors, ...)."""
+
+    __tablename__ = "system_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    level: Mapped[LogLevel] = mapped_column(
+        Enum(LogLevel, name="log_level"), index=True
+    )
+    # e.g. login_failed, record_create, role_change (see design.md)
+    action: Mapped[str] = mapped_column(String(50), index=True)
+    message: Mapped[str] = mapped_column(String(500))
+    # Empty when the actor is unknown, e.g. a failed login for a username
+    # that does not exist
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # 45 characters: long enough for IPv6
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, index=True)
+
+    # lazy="raise": async code cannot load it implicitly, queries must ask
+    user: Mapped[User | None] = relationship(lazy="raise")
+
+    @property
+    def username(self) -> str | None:
+        return self.user.username if self.user else None
