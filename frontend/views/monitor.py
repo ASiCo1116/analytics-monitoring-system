@@ -2,8 +2,8 @@ import streamlit as st
 
 from lib import charts, session
 from lib.fmt import to_local
-
-METRICS = {"cpu": "CPU", "memory": "記憶體", "temperature": "溫度"}
+from lib.labels import METRICS, metric_label
+from lib.ws_listener import HISTORY_SECONDS, MAX_ALERTS
 
 st.title("即時監控")
 metric = st.segmented_control(
@@ -56,15 +56,18 @@ def live_panel(metric: str) -> None:
 
     line, bar = st.columns([2, 1])
     with line:
-        st.markdown(f"**最近 60 秒的{METRICS[metric]}**")
+        st.markdown(f"**最近 {HISTORY_SECONDS} 秒的{metric_label(metric)}**")
         st.plotly_chart(
-            charts.live_line(history, metric, threshold, unit), key="line"
+            charts.live_line(history, metric, threshold, unit),
+            key="monitor_line",
         )
     with bar:
         st.markdown("**目前數值**")
-        st.plotly_chart(charts.live_bar(latest, threshold, unit), key="bar")
+        st.plotly_chart(
+            charts.live_bar(latest, threshold, unit), key="monitor_bar"
+        )
 
-    st.markdown("**最近 20 筆告警**（所有指標）")
+    st.markdown(f"**最近 {MAX_ALERTS} 筆告警**（所有指標）")
     alerts = list(listener.alerts)
     if alerts:
         st.dataframe(
@@ -72,7 +75,7 @@ def live_panel(metric: str) -> None:
                 {
                     "時間": to_local(a["recorded_at"]),
                     "伺服器": a["server"],
-                    "指標": METRICS[a["metric"]],
+                    "指標": metric_label(a["metric"]),
                     "數值": f"{a['value']:g} {a['unit']}",
                     "閾值": a["threshold"],
                 }

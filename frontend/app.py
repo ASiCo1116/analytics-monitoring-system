@@ -3,6 +3,7 @@
 import streamlit as st
 
 from lib import api, session
+from lib.labels import role_label
 from lib.login_cookie import COOKIE_NAME
 
 st.set_page_config(page_title="Analytics Monitoring System", layout="wide")
@@ -20,21 +21,16 @@ session.leave_if_ended()
 # A refresh or a new tab is a new session: log in again from the cookie,
 # checked once per session
 saved_token = st.context.cookies.get(COOKIE_NAME)
-if (
-    saved_token
-    and not session.logged_in()
-    and "cookie_checked" not in st.session_state
-):
-    st.session_state.cookie_checked = True
-    me = api.me(saved_token)
-    if me.status_code == 200:
-        session.start(saved_token, me.json())
-    elif api.ends_login(me):
+if saved_token and session.needs_cookie_check():
+    response = api.me(saved_token)
+    if response.ok:
+        session.start(saved_token, response.json())
+    elif api.ends_login(response):
         session.end(expired=True)
         session.leave_if_ended()
     else:
         # Backend trouble: keep the cookie, a later refresh can retry
-        st.error(api.error_text(me))
+        st.error(api.error_text(response))
 
 if not session.logged_in():
     page = st.navigation(
@@ -63,7 +59,7 @@ else:
     me = session.user()
     with st.sidebar:
         st.markdown(f"**{me['username']}**")
-        st.caption(f"角色：{session.ROLE_LABELS[me['role']]}")
+        st.caption(f"角色：{role_label(me['role'])}")
         if st.button("登出", icon=":material/logout:"):
             session.end()
             st.rerun()

@@ -51,7 +51,8 @@ dev = { cmd = "streamlit run server.py --server.port 8501", cwd = "frontend", en
 
 # ---------- lint ----------
 [feature.lint.tasks]
-lint = "ruff check backend frontend"
+# Lint rules plus formatting: CI fails on code `ruff format` would change
+lint = "ruff check backend frontend && ruff format --check backend frontend"
 format = "ruff format backend frontend"
 
 [feature.lint.dependencies]

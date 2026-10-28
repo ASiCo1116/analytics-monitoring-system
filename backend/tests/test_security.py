@@ -25,7 +25,6 @@ def test_hash_and_verify_password():
     assert not verify_password("wrong-password", hashed)
 
 
-
 async def test_async_hash_and_login_check():
     hashed = await hash_password_async("Password123")
 
@@ -41,8 +40,9 @@ async def test_unknown_user_still_runs_bcrypt(monkeypatch):
     monkeypatch.setattr(
         security,
         "verify_password",
-        lambda password, hashed: calls.append(hashed)
-        or real_verify(password, hashed),
+        lambda password, hashed: (
+            calls.append(hashed) or real_verify(password, hashed)
+        ),
     )
 
     assert not await check_login_password("Password123", None)

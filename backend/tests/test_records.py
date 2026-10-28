@@ -237,7 +237,6 @@ async def test_owner_can_update(client, db, auth_headers, add_records):
     assert "value" in log.message
 
 
-
 async def test_update_logs_only_changed_fields(
     client, db, auth_headers, add_records
 ):
@@ -251,6 +250,7 @@ async def test_update_logs_only_changed_fields(
 
     [log] = await audit_logs("record_update")
     assert log.message == f"user updated record {record.id} (value)"
+
 
 async def test_other_user_cannot_update(
     client, db, auth_headers, add_records, other_user

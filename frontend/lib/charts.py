@@ -12,6 +12,14 @@ ALERT = "#d62728"
 # Series colours; red is kept for anomalies only
 PALETTE = ["#1f77b4", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf", "#8c564b"]
 HEIGHT = 340
+# Opacity of the min-max band behind the trend line
+BAND_OPACITY = 0.15
+
+
+def _rgba(color: str, alpha: float) -> str:
+    """ "#1f77b4" with an opacity, as Plotly's "rgba(...)"."""
+    red, green, blue = (int(color[i : i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({red}, {green}, {blue}, {alpha})"
 
 
 def _layout(fig: go.Figure, y_title: str = "") -> go.Figure:
@@ -39,7 +47,7 @@ def _threshold_line(fig: go.Figure, threshold: float) -> None:
 def live_line(
     history: list[dict], metric: str, threshold: float, unit: str
 ) -> go.Figure:
-    """Last 60 seconds of one metric: a line per server, red anomalies."""
+    """Recent history of one metric: a line per server, red anomalies."""
     series: dict[str, list[dict]] = {}
     for message in history:
         for item in message["data"]:
@@ -80,7 +88,7 @@ def live_bar(latest: list[dict], threshold: float, unit: str) -> go.Figure:
     return _layout(fig, unit)
 
 
-def group_bar(groups: list[dict], value_key: str, title: str) -> go.Figure:
+def group_bar(groups: list[dict], value_key: str, y_title: str) -> go.Figure:
     """One bar per category or server."""
     fig = go.Figure(
         go.Bar(
@@ -89,10 +97,10 @@ def group_bar(groups: list[dict], value_key: str, title: str) -> go.Figure:
             marker_color=PALETTE[0],
         )
     )
-    return _layout(fig, title)
+    return _layout(fig, y_title)
 
 
-def trend_line(points: list[dict], title: str) -> go.Figure:
+def trend_line(points: list[dict], y_title: str) -> go.Figure:
     """Average per interval, with the min-max range shaded."""
     times = [to_local(p["bucket"]) for p in points]
     fig = go.Figure()
@@ -110,7 +118,7 @@ def trend_line(points: list[dict], title: str) -> go.Figure:
         mode="lines",
         line={"width": 0},
         fill="tonexty",
-        fillcolor="rgba(31, 119, 180, 0.15)",
+        fillcolor=_rgba(PALETTE[0], BAND_OPACITY),
         name="最小–最大",
     )
     fig.add_scatter(
@@ -120,4 +128,4 @@ def trend_line(points: list[dict], title: str) -> go.Figure:
         name="平均",
         line={"color": PALETTE[0]},
     )
-    return _layout(fig, title)
+    return _layout(fig, y_title)

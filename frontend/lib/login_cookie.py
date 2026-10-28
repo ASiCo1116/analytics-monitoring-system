@@ -35,7 +35,7 @@ def _drop_expired(now: float) -> None:
 
 
 def issue_ticket(token: str) -> str:
-    """A ticket the browser can exchange once, within 30 seconds."""
+    """A ticket the browser can exchange once, within TICKET_SECONDS."""
     ticket = secrets.token_urlsafe(32)
     now = time.monotonic()
     with _lock:
