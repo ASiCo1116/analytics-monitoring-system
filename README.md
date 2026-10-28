@@ -285,7 +285,7 @@ docker compose --profile test run --rm --build backend-test
 └── .env.example
 ```
 
-完整的設計決策（時區規則、API 一覽、批次寫入與 WebSocket 認證的細節等）見 [design.md](openspec/changes/realtime-analytics-monitoring-system/design.md)。
+完整的設計決策（時區規則、API 一覽、批次寫入與 WebSocket 認證的細節等）見 [design.md](openspec/changes/archive/2026-10-28-realtime-analytics-monitoring-system/design.md)。
 
 ## 已知限制與改進方向
 
