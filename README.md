@@ -1,10 +1,6 @@
 # Analytics Monitoring System
 
-即時資料分析與監控系統：FastAPI 後端、Streamlit 前端、MariaDB 資料庫，以 Docker Compose 一鍵啟動。
-
-## 專案介紹
-
-系統模擬多台伺服器的 CPU、記憶體與溫度指標，每秒即時推送到瀏覽器，超過閾值時以紅色標示並列入告警；同時提供手動資料記錄的管理、統計分析與 Excel 匯出，並依角色控管權限。
+即時資料分析與監控系統：模擬多台伺服器的 CPU、記憶體與溫度指標，每秒即時推送到瀏覽器，超過閾值時以紅色標示並列入告警；同時提供手動資料記錄的管理、統計分析與 Excel 匯出，並依角色控管權限。
 
 | 功能 | 內容 |
 |---|---|
@@ -228,14 +224,6 @@ docker compose --profile test run --rm --build backend-test
 - 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
 - 開 PR 或推送新的 commit 到 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會執行 lint（`pixi run lint`）與上面的測試指令。
 
-## 程式碼風格
-
-使用 [ruff](https://docs.astral.sh/ruff/) 檢查與格式化，設定在根目錄 `ruff.toml`（每行最多 80 字元）：
-
-```bash
-pixi run lint     # 檢查
-pixi run format   # 自動格式化
-```
 
 ## 本地運行
 
