@@ -183,7 +183,7 @@ docker compose down -v         # 停止並清除資料庫資料
 | User | `user` | `User@1234` | 瀏覽、新增與匯入資料；只能修改、刪除自己建立的資料 |
 | Viewer | `viewer` | `Viewer@1234` | 只能瀏覽與下載 |
 
-資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料（大多屬於 `user`，少部分屬於 `admin`）。另有 `sample_data/records.csv`（50 筆）可用來測試匯入功能。
+資料記錄表為空時，啟動時也會建立約 200 筆最近 30 天的範例資料：各伺服器的 CPU、記憶體、溫度讀數（分類為 `cpu`、`memory`、`temperature`），大多屬於 `user`，少部分屬於 `admin`。另有 `sample_data/records.csv` 與內容相同的 `sample_data/records.json`（各 50 筆）可用來測試匯入功能。
 
 ## 主要設定
 
@@ -277,7 +277,7 @@ docker compose --profile test run --rm --build backend-test
 │   ├── app.py           # 依登入狀態與角色組出頁面
 │   ├── views/           # 登入、即時監控、資料記錄、資料分析、系統管理
 │   └── lib/             # API 呼叫、WebSocket 接收執行緒、圖表、共用元件
-├── sample_data/records.csv
+├── sample_data/         # 匯入範例：records.csv、records.json
 ├── openspec/            # 需求規格與設計文件
 ├── .github/workflows/   # CI：PR 時執行 lint 與測試
 ├── docker-compose.yml
