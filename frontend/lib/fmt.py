@@ -1,6 +1,6 @@
 """Time conversion between the API (UTC, "Z") and APP_TIMEZONE."""
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from lib.config import TZ
 
@@ -19,3 +19,12 @@ def local_param(day: date | None, at: time = time.min) -> str | None:
     if day is None:
         return None
     return datetime.combine(day, at).isoformat()
+
+
+def local_end_param(day: date | None) -> str | None:
+    """The end of a date range picked on screen, for a query parameter.
+
+    The day is inclusive on screen; the API end is exclusive, so this is
+    the next local midnight.
+    """
+    return local_param(day + timedelta(days=1)) if day else None

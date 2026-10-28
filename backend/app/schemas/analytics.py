@@ -72,9 +72,7 @@ class Stats(BaseModel):
 
 
 class GroupStats(Stats):
-    group: str = Field(
-        description="Category for records, server for metrics"
-    )
+    group: str = Field(description="Category for records, server for metrics")
 
 
 class TrendPoint(BaseModel):

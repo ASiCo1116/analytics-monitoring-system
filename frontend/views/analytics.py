@@ -1,15 +1,21 @@
-from datetime import timedelta
-
 import streamlit as st
 
 from lib import api, charts
-from lib.fmt import local_param
+from lib.fmt import local_end_param, local_param
+from lib.labels import METRIC_UNITS, METRICS, metric_label
+from lib.widgets import select_or_all
 
 SOURCES = {"records": "資料記錄", "metrics": "即時監控資料"}
-METRICS = {"cpu": "CPU", "memory": "記憶體", "temperature": "溫度"}
-UNITS = {"cpu": "%", "memory": "%", "temperature": "°C"}
 INTERVALS = {"minute": "每分鐘", "hour": "每小時", "day": "每天"}
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+XLSX_MEDIA_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+
+def format_stat(value: float | None) -> str:
+    """A statistic for a card: thousands separators, no trailing zeros."""
+    return "—" if value is None else f"{value:,.2f}".rstrip("0").rstrip(".")
+
 
 st.title("資料分析")
 
@@ -28,29 +34,30 @@ end_day = c2.date_input("結束日期（含）", value=None, key="analytics_end"
 params = {
     "source": source,
     "start": local_param(start_day),
-    # The end date is inclusive on screen; the API end is exclusive
-    "end": local_param(end_day + timedelta(days=1)) if end_day else None,
+    "end": local_end_param(end_day),
 }
+# The per-group statistics, when they are already known from building the
+# server list (metrics with no server chosen)
+groups_response = None
 if source == "records":
-    categories = api.get("/records/categories")
-    category = c3.selectbox(
-        "分類",
-        ["全部", *(categories.json() if categories.ok else [])],
-        key="analytics_category",
+    params["category"] = select_or_all(
+        "分類", api.categories(), key="analytics_category", container=c3
     )
-    params["category"] = None if category == "全部" else category
     unit = ""
 else:
     metric = c3.selectbox(
-        "指標", list(METRICS), format_func=METRICS.get, key="analytics_metric"
+        "指標", list(METRICS), format_func=metric_label, key="analytics_metric"
     )
     params["metric"] = metric
-    unit = UNITS[metric]
+    unit = METRIC_UNITS[metric]
     # Server names come from the data itself
     all_groups = api.get("/analytics/groups", **params)
     servers = [g["group"] for g in all_groups.json()] if all_groups.ok else []
-    server = c4.selectbox("伺服器", ["全部", *servers], key="analytics_server")
-    params["server"] = None if server == "全部" else server
+    params["server"] = select_or_all(
+        "伺服器", servers, key="analytics_server", container=c4
+    )
+    if params["server"] is None:
+        groups_response = all_groups
     if start_day is None:
         st.caption("未指定開始日期時，即時監控資料只統計最近 24 小時。")
 
@@ -60,11 +67,6 @@ if not summary.ok:
     st.stop()
 stats = summary.json()
 
-
-def show(value: float | None) -> str:
-    return "—" if value is None else f"{value:,.2f}".rstrip("0").rstrip(".")
-
-
 cards = st.columns(5)
 cards[0].metric("筆數", f"{stats['count']:,}", border=True)
 for card, (key, label) in zip(
@@ -72,7 +74,7 @@ for card, (key, label) in zip(
     [("sum", "總計"), ("avg", "平均"), ("max", "最大值"), ("min", "最小值")],
     strict=True,
 ):
-    card.metric(label, show(stats[key]), border=True)
+    card.metric(label, format_stat(stats[key]), border=True)
 
 if stats["count"] == 0:
     st.info("沒有符合條件的資料。")
@@ -82,7 +84,11 @@ left, right = st.columns(2)
 with left:
     group_label = "分類" if source == "records" else "伺服器"
     st.markdown(f"**依{group_label}的平均值**")
-    response = api.get("/analytics/groups", **params)
+    response = (
+        groups_response
+        if groups_response is not None
+        else api.get("/analytics/groups", **params)
+    )
     if not response.ok:
         st.error(api.error_text(response))
     else:
@@ -143,7 +149,7 @@ if prepared and prepared["key"] == export_key:
         f"下載 {prepared['name']}",
         prepared["data"],
         file_name=prepared["name"],
-        mime=XLSX,
+        mime=XLSX_MEDIA_TYPE,
         type="primary",
         icon=":material/download:",
     )

@@ -5,7 +5,7 @@ refresh or a new tab can log in again without the password.
 """
 
 import json
-from typing import NoReturn
+from typing import NoReturn, TypedDict
 from urllib.parse import urlencode
 
 import streamlit as st
@@ -15,7 +15,17 @@ from lib.login_cookie import issue_ticket
 from lib.ws_listener import MetricsListener
 
 EXPIRED_MESSAGE = "登入已過期或帳號已停用，請重新登入"
-ROLE_LABELS = {"admin": "Admin", "user": "User", "viewer": "Viewer"}
+
+
+class Me(TypedDict):
+    """The /users/me result."""
+
+    id: str
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: str
 
 
 def logged_in() -> bool:
@@ -26,8 +36,7 @@ def token() -> str | None:
     return st.session_state.get("token")
 
 
-def user() -> dict:
-    """The /users/me result: id, username, email, role, is_active, ..."""
+def user() -> Me:
     return st.session_state["user"]
 
 
@@ -50,7 +59,15 @@ def login(access_token: str) -> NoReturn:
     redirect(f"/session/start?{query}")
 
 
-def start(access_token: str, me: dict) -> None:
+def needs_cookie_check() -> bool:
+    """True once per new session: try to log in again from the cookie."""
+    if logged_in() or "session_cookie_checked" in st.session_state:
+        return False
+    st.session_state.session_cookie_checked = True
+    return True
+
+
+def start(access_token: str, me: Me) -> None:
     st.session_state.token = access_token
     st.session_state.user = me
     st.session_state.listener = MetricsListener(BACKEND_WS_URL, access_token)
@@ -60,7 +77,7 @@ def listener() -> MetricsListener:
     """The live metrics listener; restarted if it stopped while idle."""
     current = st.session_state.listener
     if current.stopped and not current.auth_failed:
-        current = MetricsListener(BACKEND_WS_URL, token())
+        current = MetricsListener(BACKEND_WS_URL, st.session_state.token)
         st.session_state.listener = current
     return current
 

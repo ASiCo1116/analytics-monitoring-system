@@ -16,7 +16,7 @@ with login_tab, st.form("login"):
     password = st.text_input("密碼", type="password")
     if st.form_submit_button("登入", type="primary"):
         response = api.login(username, password)
-        if response.status_code == 200:
+        if response.ok:
             # The page reloads and logs in from the cookie
             session.login(response.json()["access_token"])
         elif response.status_code == 401:
@@ -37,7 +37,7 @@ with register_tab, st.form("register", clear_on_submit=False):
             st.error("兩次輸入的密碼不一致")
         else:
             response = api.register(new_username, email, new_password)
-            if response.status_code == 201:
+            if response.ok:
                 st.success("註冊成功，請切換到「登入」分頁登入。")
             elif response.status_code == 409:
                 st.error("帳號或 Email 已被使用")
