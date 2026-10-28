@@ -265,6 +265,7 @@ erDiagram
 │   └── Dockerfile
 ├── sample_data/records.csv     # 約 50 筆，可直接用來測試匯入
 ├── pixi.toml / pixi.lock      # 前後端共用：features、environments（backend / backend-prod / frontend）、tasks
+├── .github/workflows/ci.yml   # PR 時執行 lint 與單元測試
 ├── .dockerignore
 ├── docker-compose.yml
 ├── .env.example
@@ -386,6 +387,7 @@ Uvicorn 會把 WebSocket 握手連同完整網址（含 query string）寫進日
   - `db-test` 與 `backend-test`：放在 `profiles: ["test"]`，平常不啟動；`backend-test` 以後端 Dockerfile 的 `test` target 建置，執行 `pixi run -e backend test`；`db-test` 是另一個 MariaDB 容器（無 volume），讓測試不碰正式資料，也不需要用 SQL 腳本建第二個資料庫。
   - 全部在 `app-net` 網路，服務間以服務名稱互連（`db:3306`、`backend:8000`）。
 - **測試指令**：`docker compose --profile test run --rm backend-test`，測試以 `Base.metadata.create_all/drop_all` 建立與清除資料表，並將模擬器設為停用。
+- **CI**：`.github/workflows/ci.yml` 在 pull request 開啟、重新開啟或推送新 commit 時執行兩個 job。`lint` 以 `prefix-dev/setup-pixi`（pixi 版本與 Dockerfile 相同）安裝 `lint` 環境後執行 `pixi run lint`；`test` 執行與本地相同的 `cp .env.example .env` 與 `docker compose --profile test run --rm --build backend-test`。測試沿用 compose 的 `db-test`，不在 workflow 另外設定資料庫，本地與 CI 的測試環境完全一致；代價是每次執行都要建置測試映像。同一個 PR 有新的推送時，會取消還在執行的舊流程。
 
 ### 13. 環境變數（`.env.example`）
 

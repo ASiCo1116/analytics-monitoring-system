@@ -226,6 +226,7 @@ docker compose --profile test run --rm --build backend-test
 
 - `--build` 會把最新的程式碼建進測試映像；`db-test` 會自動啟動，測試結束後可用 `docker compose rm -sf db-test` 停止並移除測試資料庫，不影響主系統（只 `stop` 會留下容器，之後主系統 `down` 時 network 被刪，下次測試會啟動失敗）。
 - 測試資料庫名稱必須以 `_test` 結尾，否則測試會拒絕執行，避免誤刪開發或正式資料。
+- 開 PR 或推送新的 commit 到 PR 時，GitHub Actions（`.github/workflows/ci.yml`）會執行 lint（`pixi run lint`）與上面的測試指令。
 
 ## 程式碼風格
 
@@ -290,6 +291,7 @@ pixi run format   # 自動格式化
 │   └── lib/             # API 呼叫、WebSocket 接收執行緒、圖表、共用元件
 ├── sample_data/records.csv
 ├── openspec/            # 需求規格與設計文件
+├── .github/workflows/   # CI：PR 時執行 lint 與測試
 ├── docker-compose.yml
 ├── pixi.toml / pixi.lock
 └── .env.example
