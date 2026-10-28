@@ -19,27 +19,30 @@ from app.schemas.admin import (
     UserAdminUpdate,
     UserListParams,
 )
+from app.services.paging import page_of
 
 COUNTED_TABLES = (User, Record, Metric, SystemLog)
 
 
-async def list_users(
-    db: AsyncSession, params: UserListParams
-) -> tuple[list[User], int]:
-    query = select(User)
+def _filtered_users(query: Select, params: UserListParams) -> Select:
     if params.role is not None:
         query = query.where(User.role == params.role)
     if params.is_active is not None:
         query = query.where(User.is_active == params.is_active)
     if params.q:
         query = query.where(User.username.contains(params.q, autoescape=True))
-    total = await db.scalar(select(func.count()).select_from(query.subquery()))
-    users = await db.scalars(
-        # UUIDv7 ids follow creation order
-        query.order_by(User.id)
-        .offset((params.page - 1) * params.page_size)
-        .limit(params.page_size)
+    return query
+
+
+async def list_users(
+    db: AsyncSession, params: UserListParams
+) -> tuple[list[User], int]:
+    total = await db.scalar(
+        _filtered_users(select(func.count()).select_from(User), params)
     )
+    # UUIDv7 ids follow creation order
+    query = _filtered_users(select(User), params).order_by(User.id)
+    users = await db.scalars(page_of(query, params))
     return list(users), total
 
 
@@ -93,13 +96,12 @@ async def list_logs(
     total = await db.scalar(
         _filtered_logs(select(func.count()).select_from(SystemLog), params)
     )
-    logs = await db.scalars(
+    query = (
         _filtered_logs(select(SystemLog), params)
         .options(joinedload(SystemLog.user))
         .order_by(SystemLog.created_at.desc(), SystemLog.id.desc())
-        .offset((params.page - 1) * params.page_size)
-        .limit(params.page_size)
     )
+    logs = await db.scalars(page_of(query, params))
     return list(logs), total
 
 

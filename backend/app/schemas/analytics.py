@@ -72,13 +72,15 @@ class Stats(BaseModel):
 
 
 class GroupStats(Stats):
-    # Category for records, server for metrics
-    group: str
+    group: str = Field(
+        description="Category for records, server for metrics"
+    )
 
 
 class TrendPoint(BaseModel):
-    # Start of the interval; intervals follow APP_TIMEZONE
-    bucket: UtcDatetime
+    bucket: UtcDatetime = Field(
+        description="Start of the interval; intervals follow APP_TIMEZONE"
+    )
     count: int
     avg: Rounded
     max: float

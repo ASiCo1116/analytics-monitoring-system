@@ -16,6 +16,7 @@ from app.schemas.common import (
     PageParams,
     TimeRangeParams,
     UtcDatetime,
+    reject_explicit_nulls,
 )
 
 # Leading/trailing spaces are removed first, so "   " counts as empty
@@ -43,8 +44,9 @@ class RecordCreate(BaseModel):
     title: Title
     value: Value
     category: Category
-    # Optional: the current time is used when missing
-    recorded_at: LocalDatetime | None = None
+    recorded_at: LocalDatetime | None = Field(
+        None, description="When the data happened; defaults to now"
+    )
     description: Description | None = None
 
 
@@ -60,9 +62,7 @@ class RecordUpdate(BaseModel):
     @model_validator(mode="after")
     def required_fields_not_null(self) -> Self:
         # description may be cleared with null; the other columns are NOT NULL
-        for name in ("title", "value", "category", "recorded_at"):
-            if name in self.model_fields_set and getattr(self, name) is None:
-                raise ValueError(f"{name} cannot be null")
+        reject_explicit_nulls(self, "title", "value", "category", "recorded_at")
         return self
 
 
@@ -87,8 +87,7 @@ class RecordListParams(PageParams, TimeRangeParams):
     category: str | None = None
     min_value: float | None = None
     max_value: float | None = None
-    # Keyword searched in the title
-    q: str | None = None
+    q: str | None = Field(None, description="Keyword searched in the title")
     sort: str = Field("-recorded_at", pattern=SORT_PATTERN)
 
 

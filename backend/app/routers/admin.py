@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 
-from app.deps import DbSession, client_ip, require_roles
-from app.models import Role, User
+from app.deps import AdminUser, AuditLog, DbSession, require_admin
+from app.models import User
 from app.schemas.admin import (
     DbStatus,
     LogListParams,
@@ -14,12 +14,7 @@ from app.schemas.admin import (
 )
 from app.schemas.common import Page
 from app.schemas.user import UserRead
-from app.services import admin_service, audit_service
-
-# One dependency object, so FastAPI runs it once per request even though
-# both the router and an endpoint ask for it
-require_admin = require_roles(Role.admin)
-Admin = Annotated[User, Depends(require_admin)]
+from app.services import admin_service
 
 router = APIRouter(
     prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)]
@@ -31,12 +26,7 @@ async def list_users(
     params: Annotated[UserListParams, Query()], db: DbSession
 ) -> Page[UserRead]:
     users, total = await admin_service.list_users(db, params)
-    return Page[UserRead](
-        items=[UserRead.model_validate(u) for u in users],
-        total=total,
-        page=params.page,
-        page_size=params.page_size,
-    )
+    return Page[UserRead].of(users, total, params)
 
 
 @router.patch(
@@ -47,28 +37,26 @@ async def list_users(
 async def update_user(
     user_id: uuid.UUID,
     data: UserAdminUpdate,
-    request: Request,
+    audit: AuditLog,
     db: DbSession,
-    admin: Admin,
+    admin: AdminUser,
 ) -> User:
     """Change a user's role and/or active status (not your own)."""
     user, changes = await admin_service.update_user(db, admin, user_id, data)
     if "role" in changes:
         old, new = changes["role"]
-        await audit_service.log(
+        await audit(
             "role_change",
             f"{admin.username} changed the role of {user.username} "
             f"from {old} to {new}",
-            user_id=admin.id,
-            ip_address=client_ip(request),
+            user=admin,
         )
     if "is_active" in changes:
         verb = "activated" if user.is_active else "deactivated"
-        await audit_service.log(
+        await audit(
             "user_status_change",
             f"{admin.username} {verb} {user.username}",
-            user_id=admin.id,
-            ip_address=client_ip(request),
+            user=admin,
         )
     return user
 
@@ -79,12 +67,7 @@ async def list_logs(
 ) -> Page[SystemLogRead]:
     """Audit events, newest first."""
     logs, total = await admin_service.list_logs(db, params)
-    return Page[SystemLogRead](
-        items=[SystemLogRead.model_validate(log) for log in logs],
-        total=total,
-        page=params.page,
-        page_size=params.page_size,
-    )
+    return Page[SystemLogRead].of(logs, total, params)
 
 
 @router.get("/db-status", response_model=DbStatus)

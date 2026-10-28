@@ -1,4 +1,5 @@
 from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -53,6 +54,21 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [name.strip() for name in value.split(",") if name.strip()]
         return value
+
+    @field_validator("app_timezone")
+    @classmethod
+    def known_timezone(cls, value: str) -> str:
+        # Fail at startup rather than on the first request that converts
+        # a time
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"unknown time zone {value!r}") from exc
+        return value
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.app_timezone)
 
     @property
     def database_url(self) -> str:

@@ -1,10 +1,11 @@
 """Bulk import of data records from CSV or JSON files (all or nothing)."""
 
+import asyncio
 import csv
 import io
 import json
 from pathlib import PurePath
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException, UploadFile, status
 from pydantic import ValidationError
@@ -19,6 +20,8 @@ MAX_ROWS = 10_000
 COLUMNS = ("title", "value", "category", "recorded_at", "description")
 REQUIRED_COLUMNS = {"title", "value", "category"}
 
+FileFormat = Literal["csv", "json"]
+
 
 def _unprocessable(errors: list[dict[str, Any]]) -> HTTPException:
     return HTTPException(
@@ -32,7 +35,7 @@ def _file_error(message: str) -> HTTPException:
     return _unprocessable([{"row": 0, "field": None, "message": message}])
 
 
-def _detect_format(upload: UploadFile) -> str:
+def _detect_format(upload: UploadFile) -> FileFormat:
     suffix = PurePath(upload.filename or "").suffix.lower()
     content_type = (upload.content_type or "").split(";")[0].strip()
     if suffix == ".csv" or content_type == "text/csv":
@@ -93,6 +96,20 @@ def _validate(rows: list[Any]) -> list[RecordCreate]:
     return valid
 
 
+def _parse_and_validate(
+    text: str, file_format: FileFormat
+) -> list[RecordCreate]:
+    rows = _parse_csv(text) if file_format == "csv" else _parse_json(text)
+    if len(rows) > MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"File has more than {MAX_ROWS} records",
+        )
+    if not rows:
+        raise _file_error("File contains no records")
+    return _validate(rows)
+
+
 async def import_records(
     db: AsyncSession, upload: UploadFile, owner: User
 ) -> int:
@@ -109,16 +126,10 @@ async def import_records(
     except UnicodeDecodeError:
         raise _file_error("File must be UTF-8 encoded") from None
 
-    rows = _parse_csv(text) if file_format == "csv" else _parse_json(text)
-    if len(rows) > MAX_ROWS:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=f"File has more than {MAX_ROWS} records",
-        )
-    if not rows:
-        raise _file_error("File contains no records")
-
-    records = [new_record(data, owner) for data in _validate(rows)]
+    # Parsing and validating up to 10,000 rows is CPU work: keep it off the
+    # event loop, like the Excel export
+    rows = await asyncio.to_thread(_parse_and_validate, text, file_format)
+    records = [new_record(data, owner) for data in rows]
     # One transaction: either every row is stored or none
     db.add_all(records)
     await db.commit()

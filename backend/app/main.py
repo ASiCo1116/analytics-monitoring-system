@@ -1,13 +1,15 @@
 import asyncio
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.core.config import settings
+from app.core.errors import DATABASE_UNAVAILABLE
 from app.core.logging import log_requests, setup_logging
 from app.db.session import engine
 from app.deps import DbSession, client_ip
@@ -45,7 +47,7 @@ def start_realtime_tasks() -> list[asyncio.Task]:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     tasks = start_realtime_tasks() if settings.simulator_enabled else []
     yield
     # Stop both tasks first, then write what is left ourselves, so two
@@ -65,7 +67,9 @@ app = FastAPI(
 )
 
 
-async def handle_unexpected_errors(request: Request, call_next):
+async def handle_unexpected_errors(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Turn any unhandled exception into a plain 500.
 
     The traceback goes to stdout and a server_error audit event is written;
@@ -85,7 +89,8 @@ async def handle_unexpected_errors(request: Request, call_next):
             ip_address=client_ip(request),
         )
         return JSONResponse(
-            status_code=500, content={"detail": "Internal server error"}
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Internal server error"},
         )
 
 
@@ -106,7 +111,8 @@ async def database_unavailable(
     """
     logger.warning("Database unavailable: %s", exc.orig)
     return JSONResponse(
-        status_code=503, content={"detail": "Database unavailable"}
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": DATABASE_UNAVAILABLE},
     )
 
 
@@ -126,6 +132,7 @@ async def health(db: DbSession) -> dict[str, str]:
         await db.execute(select(1))
     except DBAPIError as exc:
         raise HTTPException(
-            status_code=503, detail="Database unavailable"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=DATABASE_UNAVAILABLE,
         ) from exc
     return {"status": "ok"}

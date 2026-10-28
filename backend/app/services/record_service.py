@@ -5,10 +5,11 @@ from sqlalchemy import Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.core.errors import NOT_ENOUGH_PERMISSIONS
 from app.db.base import utc_now
-from app.deps import NOT_ENOUGH_PERMISSIONS
 from app.models import Record, Role, User
 from app.schemas.record import RecordCreate, RecordListParams, RecordUpdate
+from app.services.paging import page_of
 
 SORT_COLUMNS = {
     "recorded_at": Record.recorded_at,
@@ -70,10 +71,8 @@ async def list_records(
         .options(joinedload(Record.owner))
         # id as tie-breaker keeps pages stable when sort values are equal
         .order_by(order, Record.id.desc())
-        .offset((params.page - 1) * params.page_size)
-        .limit(params.page_size)
     )
-    records = (await db.scalars(query)).all()
+    records = await db.scalars(page_of(query, params))
     return list(records), total
 
 
@@ -91,7 +90,7 @@ def can_modify(record: Record, user: User) -> bool:
     return user.role == Role.admin or record.owner_id == user.id
 
 
-def ensure_can_modify(record: Record, user: User) -> None:
+def _ensure_can_modify(record: Record, user: User) -> None:
     if not can_modify(record, user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -100,18 +99,35 @@ def ensure_can_modify(record: Record, user: User) -> None:
 
 
 async def update_record(
-    db: AsyncSession, record: Record, data: RecordUpdate
-) -> Record:
-    # Only the fields present in the request; the owner is never changed
-    for name, value in data.model_dump(exclude_unset=True).items():
-        setattr(record, name, value)
+    db: AsyncSession, record_id: int, data: RecordUpdate, user: User
+) -> tuple[Record, list[str]]:
+    """Partial update by the creator or an Admin (404, then 403).
+
+    Only the fields sent are considered and the owner never changes.
+    Returns the record and the names of the fields whose value changed.
+    """
+    record = await get_record(db, record_id)
+    _ensure_can_modify(record, user)
+    sent = data.model_dump(exclude_unset=True)
+    changed = [
+        name for name, value in sent.items() if getattr(record, name) != value
+    ]
+    for name in changed:
+        setattr(record, name, sent[name])
     await db.commit()
-    return record
+    return record, changed
 
 
-async def delete_record(db: AsyncSession, record: Record) -> None:
+async def delete_record(db: AsyncSession, record_id: int, user: User) -> Record:
+    """Delete as the creator or an Admin (404, then 403).
+
+    Returns the deleted record, still readable for the audit message.
+    """
+    record = await get_record(db, record_id)
+    _ensure_can_modify(record, user)
     await db.delete(record)
     await db.commit()
+    return record
 
 
 async def delete_records(db: AsyncSession, ids: list[int], user: User) -> int:
@@ -140,4 +156,4 @@ async def delete_records(db: AsyncSession, ids: list[int], user: User) -> int:
 
 async def list_categories(db: AsyncSession) -> list[str]:
     query = select(Record.category).distinct().order_by(Record.category)
-    return list((await db.scalars(query)).all())
+    return list(await db.scalars(query))

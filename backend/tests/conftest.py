@@ -19,8 +19,7 @@ from app.db.base import Base
 from app.main import app
 from app.models import Role, User
 from app.realtime.buffer import metric_buffer
-
-TEST_PASSWORD = "Password123"
+from tests.helpers import TEST_PASSWORD, bearer
 
 # Safety net: these fixtures drop every table, so never run against a
 # non-test database
@@ -124,6 +123,6 @@ async def users(db) -> dict[Role, User]:
 def auth_headers(users) -> dict[Role, dict[str, str]]:
     """Authorization headers per role, e.g. headers=auth_headers[Role.admin]."""
     return {
-        role: {"Authorization": f"Bearer {create_access_token(u.id, u.role)}"}
+        role: bearer(create_access_token(u.id, u.role))
         for role, u in users.items()
     }

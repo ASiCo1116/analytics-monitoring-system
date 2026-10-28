@@ -1,26 +1,15 @@
 import uuid
 
 import pytest
-from sqlalchemy import select
 
 from app.db.session import SessionLocal
-from app.models import LogLevel, Role, SystemLog, User
+from app.models import LogLevel, Role, User
 from app.services import audit_service
-from tests.conftest import TEST_PASSWORD
+from tests.helpers import TEST_PASSWORD, audit_logs
 
 USERS = "/api/v1/admin/users"
 LOGS = "/api/v1/admin/logs"
 DB_STATUS = "/api/v1/admin/db-status"
-
-
-async def logs_with_action(action: str) -> list[SystemLog]:
-    # A new session sees rows committed by the request
-    async with SessionLocal() as session:
-        return list(
-            await session.scalars(
-                select(SystemLog).where(SystemLog.action == action)
-            )
-        )
 
 
 async def current_state(user: User) -> tuple[Role, bool]:
@@ -84,7 +73,7 @@ async def test_role_change_applies_immediately(client, users, auth_headers):
         "/api/v1/records", json=record, headers=auth_headers[Role.user]
     )
     assert after.status_code == 403
-    [log] = await logs_with_action("role_change")
+    [log] = await audit_logs("role_change")
     assert log.message == "admin changed the role of user from user to viewer"
     assert log.user_id == users[Role.admin].id
 
@@ -102,9 +91,9 @@ async def test_deactivate_user(client, users, auth_headers):
     me = await client.get("/api/v1/users/me", headers=auth_headers[Role.viewer])
     assert me.status_code == 403
     assert me.json() == {"detail": "Inactive user"}
-    [log] = await logs_with_action("user_status_change")
+    [log] = await audit_logs("user_status_change")
     assert log.message == "admin deactivated viewer"
-    assert await logs_with_action("role_change") == []
+    assert await audit_logs("role_change") == []
 
 
 @pytest.mark.parametrize(
@@ -135,7 +124,7 @@ async def test_unchanged_values_are_allowed_for_yourself(
     )
 
     assert response.status_code == 200
-    assert await logs_with_action("role_change") == []
+    assert await audit_logs("role_change") == []
 
 
 async def test_unknown_user(client, auth_headers):

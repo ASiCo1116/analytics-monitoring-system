@@ -1,12 +1,13 @@
 import uuid
 from datetime import timedelta
 
+import pytest
 from fastapi import Depends
 
 from app.core.security import create_access_token
 from app.deps import require_roles
-from app.main import app
 from app.models import Role
+from tests.helpers import bearer, temporary_route
 
 ME = "/api/v1/users/me"
 ADMIN_ONLY = "/_test/admin-only"
@@ -18,13 +19,14 @@ async def admin_only() -> dict[str, bool]:
     return {"ok": True}
 
 
-app.add_api_route(
-    ADMIN_ONLY, admin_only, dependencies=[Depends(require_roles(Role.admin))]
-)
-
-
-def bearer(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
+@pytest.fixture(autouse=True, scope="module")
+def admin_only_route():
+    with temporary_route(
+        ADMIN_ONLY,
+        admin_only,
+        dependencies=[Depends(require_roles(Role.admin))],
+    ):
+        yield
 
 
 async def test_missing_token(client):

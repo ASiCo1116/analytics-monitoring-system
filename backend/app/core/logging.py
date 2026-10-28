@@ -2,8 +2,9 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Awaitable, Callable
 
-from fastapi import Request
+from fastapi import Request, Response
 
 logger = logging.getLogger("app.request")
 
@@ -43,7 +44,9 @@ def setup_logging(level: str) -> None:
     logging.getLogger("uvicorn.error").addFilter(RedactTokens())
 
 
-async def log_requests(request: Request, call_next):
+async def log_requests(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """HTTP middleware: one log line per request.
 
     Logs method, path, status and duration. Only the path is logged, never

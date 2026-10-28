@@ -11,9 +11,10 @@ from sqlalchemy.exc import OperationalError
 
 from app.db.base import utc_now
 from app.db.session import SessionLocal
-from app.models import Metric, MetricName, SystemLog
+from app.models import Metric, MetricName
 from app.realtime.buffer import MetricBuffer
 from app.schemas.metric import MetricSample
+from tests.helpers import audit_logs
 
 
 def make_samples(count: int, start: int = 0) -> list[MetricSample]:
@@ -144,10 +145,7 @@ async def test_failed_write_waits_a_full_interval(start, caplog):
 
     errors = [r for r in caplog.records if r.levelno == logging.ERROR]
     assert "Could not write 5 metrics" in errors[0].getMessage()
-    async with SessionLocal() as session:
-        log = await session.scalar(
-            select(SystemLog).where(SystemLog.action == "metric_flush_failed")
-        )
+    [log] = await audit_logs("metric_flush_failed")
     assert log.level == "ERROR"
 
 

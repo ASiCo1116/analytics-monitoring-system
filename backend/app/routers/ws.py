@@ -2,12 +2,12 @@
 
 import logging
 
-import jwt
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.exc import OperationalError
 
-from app.core.security import decode_access_token
+from app.core.errors import DATABASE_UNAVAILABLE, INVALID_CREDENTIALS
 from app.db.session import SessionLocal
+from app.deps import user_for_token
 from app.models import User
 from app.realtime.manager import manager
 
@@ -20,21 +20,17 @@ async def _authenticate(token: str | None) -> User | None:
     """The active user the token belongs to, or None."""
     if not token:
         return None
-    try:
-        user_id = decode_access_token(token)
-    except jwt.InvalidTokenError:
-        return None
     # A short session of its own: a dependency session would hold a pooled
     # connection for as long as the WebSocket stays open
     async with SessionLocal() as db:
-        user = await db.get(User, user_id)
-    if user is None or not user.is_active:
-        return None
-    return user
+        user = await user_for_token(db, token)
+    return user if user is not None and user.is_active else None
 
 
 @router.websocket("/ws/metrics")
-async def metrics_stream(websocket: WebSocket, token: str | None = None):
+async def metrics_stream(
+    websocket: WebSocket, token: str | None = None
+) -> None:
     """Push every generated metric batch, once a second.
 
     Browsers cannot set headers on a WebSocket, so the JWT comes as the
@@ -49,13 +45,13 @@ async def metrics_stream(websocket: WebSocket, token: str | None = None):
     except OperationalError:
         # Not the client's fault: 1011 lets it reconnect later
         await websocket.close(
-            code=status.WS_1011_INTERNAL_ERROR, reason="Database unavailable"
+            code=status.WS_1011_INTERNAL_ERROR, reason=DATABASE_UNAVAILABLE
         )
         return
     if user is None:
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION,
-            reason="Could not validate credentials",
+            reason=INVALID_CREDENTIALS,
         )
         return
 

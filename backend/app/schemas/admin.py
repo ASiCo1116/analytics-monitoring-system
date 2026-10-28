@@ -1,11 +1,16 @@
 import uuid
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models import LogLevel, Role
 from app.realtime.buffer import FlushReason
-from app.schemas.common import PageParams, TimeRangeParams, UtcDatetime
+from app.schemas.common import (
+    PageParams,
+    TimeRangeParams,
+    UtcDatetime,
+    reject_explicit_nulls,
+)
 
 
 class UserListParams(PageParams):
@@ -13,8 +18,7 @@ class UserListParams(PageParams):
 
     role: Role | None = None
     is_active: bool | None = None
-    # Keyword searched in the username
-    q: str | None = None
+    q: str | None = Field(None, description="Keyword searched in the username")
 
 
 class UserAdminUpdate(BaseModel):
@@ -25,9 +29,7 @@ class UserAdminUpdate(BaseModel):
 
     @model_validator(mode="after")
     def fields_not_null(self) -> Self:
-        for name in ("role", "is_active"):
-            if name in self.model_fields_set and getattr(self, name) is None:
-                raise ValueError(f"{name} cannot be null")
+        reject_explicit_nulls(self, "role", "is_active")
         return self
 
 
@@ -53,14 +55,14 @@ class SystemLogRead(BaseModel):
 
 
 class PoolStatus(BaseModel):
-    size: int  # configured pool size
-    checked_out: int  # in use
-    idle: int  # open and waiting in the pool
-    overflow: int  # extra connections beyond size
+    size: int = Field(description="Configured pool size")
+    checked_out: int = Field(description="Connections in use")
+    idle: int = Field(description="Open connections waiting in the pool")
+    overflow: int = Field(description="Extra connections beyond size")
 
 
 class BufferStatus(BaseModel):
-    pending: int  # metrics waiting to be written
+    pending: int = Field(description="Metrics waiting to be written")
     last_flush_at: UtcDatetime | None
     last_flush_count: int | None
     last_flush_reason: FlushReason | None
@@ -70,6 +72,5 @@ class DbStatus(BaseModel):
     connected: bool
     response_ms: float
     pool: PoolStatus
-    # Row count per table
-    tables: dict[str, int]
+    tables: dict[str, int] = Field(description="Row count per table")
     buffer: BufferStatus
